@@ -82,6 +82,10 @@ h3{margin:4px 0 10px;font-size:1.15rem;color:var(--cyan)}
   background:#000;position:relative;aspect-ratio:1/1;touch-action:none;margin-bottom:14px;
 }
 #draw{width:100%;height:100%;display:block;cursor:crosshair}
+/* Overlay sits on top of the uploaded image; clicks pass through so you can still draw */
+#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none}
+#overlayWrap{display:none;margin-top:12px;background:var(--card2);border:3px solid var(--ink);
+  border-radius:14px;padding:8px 12px;box-shadow:4px 4px 0 var(--ink);width:fit-content}
 .drop-hint{position:absolute;inset:0;display:none;place-items:center;background:#3fe0ffaa;
   font-size:1.8rem;font-weight:700;color:var(--ink)}
 .canvas-wrap.dragging .drop-hint{display:grid}
@@ -174,6 +178,8 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
 
       <div class="canvas-wrap" id="canvasWrap">
         <canvas id="draw" width="512" height="512"></canvas>
+        <!-- Overlay layer: only used when an image was uploaded -->
+        <canvas id="overlay" width="512" height="512"></canvas>
         <div class="drop-hint">Drop your image! 📥</div>
       </div>
 
@@ -184,6 +190,9 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
         <button class="btn orange" id="eraserBtn">🧽 Eraser</button>
         <button class="btn pink" id="clearBtn">🗑️ Clear</button>
       </div>
+
+      <!-- Only shows up after you upload an image -->
+      <label class="chk" id="overlayWrap"><input type="checkbox" id="overlayChk"> 🎨 Overlay: color over my image and light up what's playing</label>
 
       <div class="palette" id="palette"></div>
       <div class="row">
@@ -379,7 +388,63 @@ function setBrush(hex, el){
 paletteEl.firstChild.classList.add('active');
 document.getElementById('customColor').oninput = e => setBrush(e.target.value, null);
 document.getElementById('eraserBtn').onclick = () => setBrush('#000000', null);
-document.getElementById('clearBtn').onclick = clearCanvas;
+document.getElementById('clearBtn').onclick = () => { clearCanvas(); setUploaded(false); };
+
+/* ---------- Overlay (only for uploaded images) ---------- */
+// hasUpload: true while the canvas holds an uploaded picture
+// overlayGrid: the color buckets drawn over the image
+// heat: how "lit up" each of the 64 columns is (1 = just played, fades to 0)
+let hasUpload = false, overlayGrid = null;
+const heat = new Array(COLS).fill(0);
+const overlay = document.getElementById('overlay'), octx = overlay.getContext('2d');
+const overlayChk = document.getElementById('overlayChk');
+
+function setUploaded(v){
+  hasUpload = v;
+  overlayGrid = null;   // picture changed, so old buckets no longer match
+  document.getElementById('overlayWrap').style.display = v ? 'flex' : 'none';
+  if (!v) overlayChk.checked = false;
+}
+overlayChk.onchange = () => {
+  // If no song has been made for this picture yet, read its colors now
+  if (overlayChk.checked && !overlayGrid) overlayGrid = analyzePicture().grid;
+};
+
+// Draws the overlay every frame
+function drawOverlay(){
+  const on = hasUpload && overlayChk.checked && overlayGrid;
+  overlay.style.display = on ? 'block' : 'none';
+  if (!on) return;
+  octx.clearRect(0,0,W,H);
+  const cw = W/COLS, ch = H/ROWS;
+  const mute = playInfo && playInfo.mute;
+
+  for (let c=0; c<COLS; c++){
+    for (let r=0; r<ROWS; r++){
+      const color = COLORS[overlayGrid[r][c].ci];
+      if (color.type === 'rest') continue;   // black stays clear
+      // Is this color's instrument actually playing in this column right now?
+      const ev = song && song.tracks[color.type] && song.tracks[color.type][c];
+      const playing = ev && heat[c] > 0.02 && !(mute && mute.has(color.type));
+      // Faint tint everywhere, bright glow on notes that are playing
+      octx.globalAlpha = playing ? 0.25 + 0.65*heat[c] : 0.18;
+      octx.fillStyle = color.hex;
+      octx.fillRect(c*cw, r*ch, cw, ch);
+      if (playing && heat[c] > 0.6){
+        octx.globalAlpha = heat[c];
+        octx.strokeStyle = '#0b0920'; octx.lineWidth = 2;
+        octx.strokeRect(c*cw+1, r*ch+1, cw-2, ch-2);
+      }
+    }
+  }
+  // Yellow playhead line
+  if (playInfo && playInfo.col != null){
+    octx.globalAlpha = 0.25; octx.fillStyle = '#ffd23f';
+    octx.fillRect(playInfo.col*cw, 0, cw, H);
+    octx.globalAlpha = 1; octx.fillRect(playInfo.col*cw, 0, 3, H);
+  }
+  octx.globalAlpha = 1;
+}
 
 // Convert mouse/touch position to canvas pixels
 function canvasPos(e){
@@ -416,6 +481,7 @@ function loadImageFile(file){
     const w = img.width*s, h = img.height*s;
     dctx.drawImage(img,(W-w)/2,(H-h)/2,w,h);
     URL.revokeObjectURL(img.src);
+    setUploaded(true);   // unlock the overlay option
   };
   img.src = URL.createObjectURL(file);
 }
@@ -428,7 +494,7 @@ wrap.addEventListener('drop', e=>{ e.preventDefault(); wrap.classList.remove('dr
 
 // Random art: blobs and stripes in random palette colors (great for testing)
 document.getElementById('randomBtn').onclick = ()=>{
-  clearCanvas();
+  clearCanvas(); setUploaded(false);
   const pick = () => COLORS[Math.floor(Math.random()*(COLORS.length-1))].hex;
   for (let i=0;i<14;i++){
     dctx.fillStyle = pick();
@@ -871,7 +937,9 @@ function loop(){
         for (let s=playInfo.lastStep+1; s<=step; s++){
           const ps = plan.passes[Math.floor(s/COLS)], cc = s%COLS;
           TRACK_ORDER.forEach(t=>{ const ev=song.tracks[t][cc]; if (ev && !ps.mute.has(t)) spawn(t,cc,ev); });
+          heat[cc] = 1;   // light up this column on the overlay
         }
+        playInfo.col = col; playInfo.mute = pass.mute;
         const bar = Math.floor(col/16);
         document.getElementById('nowPlaying').textContent =
           `Now playing: ${pass.label}  |  Bar ${bar+1} of 4  |  Chord ${song.chords[bar].name}`;
@@ -881,6 +949,8 @@ function loop(){
         mh.style.display='block'; mh.style.left = (col/COLS*100) + '%';
       } else {
         document.getElementById('nowPlaying').textContent = 'Now playing: Ending 🎉';
+        playInfo.col = null; playInfo.mute = null;
+        if (playInfo.lastStep < mainSteps) heat.fill(1);   // whole picture flashes for the ending
         if (playInfo.lastStep < mainSteps) for (let i=0;i<20;i++) spawn(TRACK_ORDER[i%TRACK_ORDER.length], Math.random()*COLS, {vel:1});
       }
       playInfo.lastStep = step;
@@ -897,6 +967,9 @@ function loop(){
   });
   vctx.globalAlpha = 1;
   particles = particles.filter(p=>p.life>0);
+  // Fade the overlay glow, then redraw it
+  for (let i=0;i<COLS;i++) heat[i] *= 0.9;
+  drawOverlay();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -1007,6 +1080,7 @@ document.getElementById('makeBtn').onclick = ()=>{
       return;
     }
     song = buildSong(analysis, document.getElementById('helperChk').checked);
+    if (hasUpload) overlayGrid = analysis.grid;   // overlay matches the song exactly
     msg.textContent = '✅ Song made! Scroll down to see and hear it.';
     showResults();
     document.getElementById('results').scrollIntoView({behavior:'smooth'});
