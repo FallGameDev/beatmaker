@@ -712,7 +712,7 @@ hexIn.oninput = checkHex; checkHex();
 /* ---------- 4. PICTURE ANALYSIS ---------- */
 // Splits the picture into a 64 x 16 grid. Inside each square we sample pixels,
 // find each pixel's closest color, and the most popular color wins the square.
-// For an animated GIF, 4 frames spread across the animation are read,
+// For an animated GIF, the frames at 1/4, 2/4, 3/4 and the end are read,
 // and bar 1 uses frame A, bar 2 uses frame B, and so on.
 function analyzePicture(){
   if (!gif){
@@ -720,7 +720,8 @@ function analyzePicture(){
     return finishAnalysis([part], part.grid);
   }
   const n = gif.frames.length;
-  const picks = [0,1,2,3].map(bar => Math.floor(bar*n/4));
+  // Bar 1 = the frame 1/4 of the way through, bar 2 = 2/4, bar 3 = 3/4, bar 4 = the last frame
+  const picks = [0,1,2,3].map(bar => Math.max(0, Math.ceil((bar+1)*n/4) - 1));
   const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
   const tctx = tmp.getContext('2d', {willReadFrequently:true});
   const parts = picks.map(fi => { composeGifFrame(tctx, fi); return analyzeData(tctx.getImageData(0,0,W,H).data); });
