@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color Beats</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   COLOR BEATS - "chunky pop" dark mode style
+   Night sky background, rounded cards, thick outlines,
+   heavy drop shadows, bright accent colors.
+   ========================================================= */
+:root{
+  --ink:#0b0920;       /* thick outline + shadow color */
+  --card:#221d4a;      /* main card color */
+  --card2:#2d2763;     /* inner panel color */
+  --text:#fff8ec;
+  --muted:#c3bdf0;
+  --pink:#ff4fa3;
+  --yellow:#ffd23f;
+  --cyan:#3fe0ff;
+  --lime:#7dff6b;
+  --orange:#ff8a3d;
+  --purple:#a77bff;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:'Fredoka',system-ui,sans-serif;
+  color:var(--text);
+  background:radial-gradient(ellipse at top,#2a1a6b 0%,#120f35 45%,#07061a 100%) fixed;
+  min-height:100vh;
+}
+/* Star layer sits behind everything */
+#sky{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.star{position:absolute;background:#fff;border-radius:50%;animation:twinkle 3s infinite ease-in-out}
+@keyframes twinkle{0%,100%{opacity:.2}50%{opacity:1}}
+.moon{position:absolute;top:36px;right:5%;width:70px;height:70px;border-radius:50%;
+  background:#fff3c4;border:4px solid var(--ink);box-shadow:0 0 40px #fff3c470, inset -14px -8px 0 #f0d47e}
+
+main{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:24px 16px 70px}
+header{margin-bottom:22px}
+header h1{
+  font-size:clamp(2.3rem,6vw,3.8rem);margin:0;color:var(--yellow);
+  text-shadow:4px 4px 0 var(--ink),-2px -2px 0 var(--ink),2px -2px 0 var(--ink),-2px 2px 0 var(--ink),7px 7px 0 var(--pink);
+  letter-spacing:1px;
+}
+header p{font-size:1.15rem;color:var(--muted);max-width:760px;margin:10px 0 0}
+
+/* Chunky card */
+.card{
+  background:var(--card);border:4px solid var(--ink);border-radius:24px;
+  box-shadow:8px 8px 0 var(--ink);padding:18px;
+}
+.grid2{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:24px}
+@media (max-width:880px){.grid2{grid-template-columns:1fr}}
+h2{margin:0 0 14px;font-size:1.5rem;display:flex;align-items:center}
+h3{margin:4px 0 10px;font-size:1.15rem;color:var(--cyan)}
+.badge{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:12px;
+  background:var(--pink);border:3px solid var(--ink);box-shadow:3px 3px 0 var(--ink);
+  margin-right:10px;color:var(--ink);font-weight:700}
+
+/* Chunky buttons */
+.btn{
+  font:inherit;font-weight:700;font-size:1rem;padding:9px 15px;
+  border:4px solid var(--ink);border-radius:16px;background:var(--cyan);color:var(--ink);
+  box-shadow:5px 5px 0 var(--ink);cursor:pointer;transition:transform .08s,box-shadow .08s;
+}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:6px 6px 0 var(--ink)}
+.btn:active{transform:translate(4px,4px);box-shadow:1px 1px 0 var(--ink)}
+.btn.pink{background:var(--pink)} .btn.yellow{background:var(--yellow)}
+.btn.lime{background:var(--lime)} .btn.orange{background:var(--orange)}
+.btn.purple{background:var(--purple)}
+.btn.big{font-size:1.7rem;padding:16px 38px;border-radius:22px;box-shadow:8px 8px 0 var(--ink)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+
+/* Drawing canvas */
+.canvas-wrap{
+  border:4px solid var(--ink);border-radius:18px;overflow:hidden;box-shadow:6px 6px 0 var(--ink);
+  background:#000;position:relative;aspect-ratio:1/1;touch-action:none;margin-bottom:14px;
+}
+#draw{width:100%;height:100%;display:block;cursor:crosshair}
+.drop-hint{position:absolute;inset:0;display:none;place-items:center;background:#3fe0ffaa;
+  font-size:1.8rem;font-weight:700;color:var(--ink)}
+.canvas-wrap.dragging .drop-hint{display:grid}
+
+.palette{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.swatch{width:38px;height:38px;border-radius:12px;border:3px solid var(--ink);box-shadow:3px 3px 0 var(--ink);cursor:pointer;padding:0}
+.swatch.active{outline:3px solid #fff;outline-offset:2px;transform:translateY(-3px)}
+input[type=range]{accent-color:var(--pink);width:140px}
+input[type=color]{width:44px;height:40px;border:3px solid var(--ink);border-radius:12px;padding:0;background:none;cursor:pointer}
+
+/* Hex readout chip */
+.readout{display:flex;align-items:center;gap:10px;background:var(--card2);border:3px solid var(--ink);
+  border-radius:14px;padding:8px 12px;margin-top:12px;min-height:52px;box-shadow:4px 4px 0 var(--ink)}
+.mini{width:30px;height:30px;border-radius:9px;border:3px solid var(--ink);flex:none}
+.arrow{font-weight:700;color:var(--yellow)}
+
+/* Color key list */
+.key-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media (max-width:480px){.key-list{grid-template-columns:1fr}}
+.key-item{display:flex;align-items:center;gap:10px;background:var(--card2);border:3px solid var(--ink);
+  border-radius:14px;padding:7px 10px;box-shadow:3px 3px 0 var(--ink)}
+.key-item b{display:block;line-height:1.1}
+.key-item small{color:var(--muted)}
+.hexcheck{margin-top:16px}
+.hexcheck input[type=text]{font:inherit;font-size:1.1rem;padding:8px 12px;border:4px solid var(--ink);
+  border-radius:14px;width:150px;background:#fff8ec;color:var(--ink);box-shadow:4px 4px 0 var(--ink)}
+
+.how{margin-top:24px}
+.how ol{margin:0;padding-left:22px;line-height:1.6;font-size:1.05rem}
+.how li{margin-bottom:6px}
+.center{text-align:center;margin:30px 0}
+#msg{margin-top:14px;font-size:1.1rem;color:var(--yellow);min-height:1.4em}
+
+/* Results */
+#results{display:none}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.chip{background:var(--card2);border:3px solid var(--ink);border-radius:14px;padding:8px 14px;box-shadow:4px 4px 0 var(--ink);font-size:1.05rem}
+.chip span{color:var(--yellow);font-weight:700}
+.now{font-size:1.25rem;font-weight:700;color:var(--lime);margin:10px 0}
+label.chk{display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer}
+label.chk input{width:20px;height:20px;accent-color:var(--pink)}
+
+#vis{width:100%;height:170px;display:block;border:4px solid var(--ink);border-radius:18px;background:#090720;box-shadow:6px 6px 0 var(--ink);margin:14px 0}
+
+/* Color breakdown bars */
+.break-item{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:center;margin-bottom:9px}
+.bar-outer{background:var(--card2);border:3px solid var(--ink);border-radius:12px;height:34px;position:relative;overflow:hidden}
+.bar-inner{height:100%;border-right:3px solid var(--ink)}
+.bar-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 10px;
+  font-weight:600;text-shadow:2px 2px 0 var(--ink),-1px -1px 0 var(--ink);font-size:.95rem}
+
+/* Pixel map */
+.map-wrap{position:relative;border:4px solid var(--ink);border-radius:16px;overflow:hidden;box-shadow:6px 6px 0 var(--ink)}
+#map{width:100%;display:block;image-rendering:pixelated}
+.map-head{position:absolute;top:0;bottom:0;width:calc(100% / 64);background:#ffffff55;border-left:3px solid var(--yellow);display:none;pointer-events:none}
+
+/* Sequencer (beat grid) */
+.seq{overflow-x:auto;border:4px solid var(--ink);border-radius:16px;background:#120f33;box-shadow:6px 6px 0 var(--ink);margin-top:10px}
+.seq-inner{position:relative}
+.seq-row{display:flex;height:26px}
+.seq-label{flex:none;width:140px;position:sticky;left:0;z-index:2;background:#1b1745;border-right:3px solid var(--ink);
+  display:flex;align-items:center;gap:6px;padding:0 8px;font-size:.85rem;font-weight:600;white-space:nowrap}
+.seq-label i{width:14px;height:14px;border-radius:5px;border:2px solid var(--ink);flex:none}
+.cell{flex:none;width:18px;height:26px;border-right:1px solid #ffffff12;border-bottom:1px solid #ffffff12;position:relative}
+.cell.beat{border-right:1px solid #ffffff30}
+.cell.barline{border-right:3px solid #ffffff60}
+.cell.on::after{content:"";position:absolute;inset:3px;border-radius:6px;background:var(--c);border:2px solid var(--ink);opacity:var(--o)}
+.cell.helper::after{border:2px dashed #fff;background:transparent;opacity:.6}
+.seq-head .cell-bar{flex:none;height:26px;border-right:3px solid #ffffff60;display:flex;align-items:center;padding-left:6px;font-size:.85rem;font-weight:700;color:var(--yellow)}
+.playhead{position:absolute;top:0;bottom:0;width:18px;background:#ffffff33;border-left:3px solid var(--yellow);pointer-events:none;display:none;z-index:1}
+.note{color:var(--muted);font-size:.95rem;margin-top:8px}
+.section-gap{margin-top:22px}
+</style>
+</head>
+<body>
+
+<!-- Night sky (stars get added by JavaScript) -->
+<div id="sky"><div class="moon"></div></div>
+
+<main>
+  <header>
+    <h1>Color Beats 🎨🥁</h1>
+    <p>Draw a picture or upload one. We find every color, match it to the closest named color by its hex code, then turn those colors into instruments and build a song from them!</p>
+  </header>
+
+  <div class="grid2">
+    <!-- ===== STEP 1: DRAW OR UPLOAD ===== -->
+    <section class="card">
+      <h2><span class="badge">1</span>Draw or Upload</h2>
+
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="draw" width="512" height="512"></canvas>
+        <div class="drop-hint">Drop your image! 📥</div>
+      </div>
+
+      <div class="row">
+        <label class="btn yellow" for="fileIn">📷 Upload Image</label>
+        <input type="file" id="fileIn" accept="image/*" hidden>
+        <button class="btn lime" id="randomBtn">🎲 Random Art</button>
+        <button class="btn orange" id="eraserBtn">🧽 Eraser</button>
+        <button class="btn pink" id="clearBtn">🗑️ Clear</button>
+      </div>
+
+      <div class="palette" id="palette"></div>
+      <div class="row">
+        <span>Custom:</span><input type="color" id="customColor" value="#3fe0ff">
+        <span>Brush size:</span><input type="range" id="size" min="4" max="80" value="24">
+      </div>
+
+      <!-- Live hex readout when you hover the canvas -->
+      <div class="readout" id="readout">
+        <span>👆 Hover over the canvas to see a color's hex code and its closest match.</span>
+      </div>
+    </section>
+
+    <!-- ===== STEP 2: COLOR KEY ===== -->
+    <section class="card">
+      <h2><span class="badge">2</span>Color = Instrument</h2>
+      <div class="key-list" id="keyList"></div>
+
+      <div class="hexcheck">
+        <h3>🔍 Hex Checker</h3>
+        <div class="row">
+          <input type="text" id="hexIn" value="#C0FFEE" maxlength="7">
+          <div class="readout" id="hexOut" style="margin:0;flex:1"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===== HOW IT WORKS (written for curious kids) ===== -->
+  <section class="card how">
+    <h2><span class="badge">?</span>How does it work?</h2>
+    <ol>
+      <li><b>Pixels:</b> Every picture is made of tiny dots called pixels. Each one has a <b>hex code</b> like <code>#FF0000</code>. The 3 pairs are how much Red, Green, and Blue light it has (00 = none, FF = the most).</li>
+      <li><b>Closest color:</b> We measure the "distance" between your pixel and each of our 12 color buckets, like measuring how far apart two points are on a map. The shortest distance wins.</li>
+      <li><b>Sheet music:</b> The picture is read <b>left to right</b> in 64 slices. That makes 4 bars of music (16 beats each). Colors <b>higher up</b> play <b>higher notes</b>.</li>
+      <li><b>Sounding good:</b> All notes stay in one <b>key</b> (a family of notes that fit together), drums snap to a steady beat, and the chords change every bar. Bright pictures get a happy <b>major</b> key, dark pictures get a moody <b>minor</b> key, and colorful pictures play faster!</li>
+    </ol>
+  </section>
+
+  <div class="center">
+    <button class="btn big pink" id="makeBtn">🎵 Make My Song!</button>
+    <div id="msg"></div>
+  </div>
+
+  <!-- ===== STEP 3: RESULTS ===== -->
+  <section class="card" id="results">
+    <h2><span class="badge">3</span>Your Song</h2>
+    <div class="chips" id="chips"></div>
+
+    <div class="row">
+      <button class="btn lime" id="playBtn">▶ Play</button>
+      <button class="btn orange" id="stopBtn">■ Stop</button>
+      <button class="btn yellow" id="wavBtn">💾 Download Song (.wav)</button>
+      <label class="chk"><input type="checkbox" id="fullChk" checked> Full song (intro + ending)</label>
+      <label class="chk"><input type="checkbox" id="loopChk"> Loop</label>
+      <label class="chk"><input type="checkbox" id="helperChk" checked> Helper beat</label>
+    </div>
+    <div class="now" id="nowPlaying">Press Play to hear it!</div>
+    <canvas id="vis" width="1100" height="170"></canvas>
+
+    <div class="grid2 section-gap">
+      <div>
+        <h3>🎨 Colors Found</h3>
+        <div id="breakdown"></div>
+      </div>
+      <div>
+        <h3>🧩 Your Picture as Color Buckets</h3>
+        <div class="map-wrap">
+          <canvas id="map" width="512" height="128"></canvas>
+          <div class="map-head" id="mapHead"></div>
+        </div>
+        <div class="note">Each square is one color bucket. Hover a square to see its real hex code. The yellow line shows where the song is playing.</div>
+        <div class="readout" id="mapReadout"><span>Hover the map above.</span></div>
+      </div>
+    </div>
+
+    <h3 class="section-gap">🥁 Beat Grid (the actual song notes)</h3>
+    <div class="seq"><div class="seq-inner" id="seqInner"></div></div>
+    <div class="note">Each row is an instrument. Bright squares are notes; stronger color means louder. Dashed squares are "helper" notes added so the song never sounds empty.</div>
+  </section>
+</main>
+
+<script>
+/* =========================================================
+   COLOR BEATS - all logic lives here
+   Sections:
+   1. Color + instrument data
+   2. Color math (hex, distance, closest match)
+   3. Drawing canvas + upload
+   4. Picture analysis (pixels -> color buckets)
+   5. Song builder (color buckets -> notes that sound good)
+   6. Sound engine (Web Audio instruments)
+   7. Playback, visuals, WAV download
+   8. Results UI
+   ========================================================= */
+
+/* ---------- 1. COLOR + INSTRUMENT DATA ---------- */
+// Each named color has several "reference" hex codes so we can catch
+// light, dark, and bright versions of the same color.
+const COLORS = [
+  {name:'Red',       hex:'#E53935', refs:['#FF0000','#E53935','#B71C1C','#D32F2F'],                   inst:'Kick Drum', emoji:'🥁', type:'kick'},
+  {name:'Orange',    hex:'#FB8C00', refs:['#FF8000','#FB8C00','#E65100','#FFA726'],                   inst:'Snare Drum', emoji:'🪘', type:'snare'},
+  {name:'Yellow',    hex:'#FDD835', refs:['#FFFF00','#FDD835','#FFEB3B','#F9A825'],                   inst:'Hi-Hat', emoji:'✨', type:'hat'},
+  {name:'Green',     hex:'#43A047', refs:['#00FF00','#43A047','#1B5E20','#8BC34A','#00C853'],         inst:'Bass', emoji:'🎸', type:'bass'},
+  {name:'Blue',      hex:'#1E88E5', refs:['#0000FF','#1E88E5','#0D47A1','#42A5F5','#00BCD4','#81D4FA'], inst:'Piano', emoji:'🎹', type:'piano'},
+  {name:'Purple',    hex:'#8E24AA', refs:['#800080','#8E24AA','#4A148C','#7E57C2','#B39DDB'],         inst:'Synth Pad', emoji:'🌌', type:'pad'},
+  {name:'Pink',      hex:'#F06292', refs:['#FF69B4','#F06292','#FF00FF','#F8BBD0','#EC407A'],         inst:'Bells', emoji:'🔔', type:'bells'},
+  {name:'Brown',     hex:'#6D4C41', refs:['#795548','#6D4C41','#4E342E','#8D6E63','#5D4037'],         inst:'Tom Drum', emoji:'🛢️', type:'tom'},
+  {name:'Skin Tone', hex:'#FFDBAC', refs:['#FFDBAC'],                                                  inst:'Hand Clap', emoji:'👏', type:'clap'},
+  {name:'White',     hex:'#F5F5F5', refs:['#FFFFFF','#F5F5F5','#E0E0E0'],                             inst:'Shaker', emoji:'🧂', type:'shaker'},
+  {name:'Gray',      hex:'#9E9E9E', refs:['#808080','#9E9E9E','#616161','#BDBDBD'],                   inst:'Woodblock', emoji:'🪵', type:'wood'},
+  {name:'Black',     hex:'#1A1A1A', refs:['#000000','#212121','#1A1A2E','#303030'],                   inst:'Rest (silence)', emoji:'🤫', type:'rest'},
+];
+COLORS.forEach((c,i)=>{ c.index=i; c.refRGB=c.refs.map(hexToRgb); });
+const IDX = {}; COLORS.forEach((c,i)=>IDX[c.type]=i);  // type -> color index
+const byType = t => COLORS[IDX[t]];
+
+// Grid size used to turn the picture into music
+const COLS = 64;  // 4 bars x 16 steps
+const ROWS = 16;  // vertical slices = pitch
+const W = 512, H = 512;
+
+// Order of rows in the beat grid
+const TRACK_ORDER = ['kick','snare','clap','hat','shaker','tom','wood','bass','piano','bells','pad'];
+const DRUM_TYPES = ['kick','snare','clap','hat','shaker','tom','wood'];
+const MELODY_TYPES = ['bass','piano','bells','pad'];
+
+/* ---------- 2. COLOR MATH ---------- */
+function hexToRgb(h){
+  h = h.replace('#','');
+  if (h.length === 3) h = h.split('').map(x=>x+x).join('');
+  const n = parseInt(h,16);
+  return {r:(n>>16)&255, g:(n>>8)&255, b:n&255};
+}
+function rgbToHex(r,g,b){
+  return '#' + [r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+// "Redmean" color distance: a simple formula that matches how human eyes
+// see color differences better than plain straight-line distance.
+function colorDist(a,b){
+  const rm = (a.r+b.r)/2, dr=a.r-b.r, dg=a.g-b.g, db=a.b-b.b;
+  return Math.sqrt((2+rm/256)*dr*dr + 4*dg*dg + (2+(255-rm)/256)*db*db);
+}
+// Find the closest named color for an {r,g,b}
+function closestColor(rgb){
+  let best = COLORS[0], bestD = Infinity;
+  for (const c of COLORS){
+    for (const ref of c.refRGB){
+      const d = colorDist(rgb, ref);
+      if (d < bestD){ bestD = d; best = c; }
+    }
+  }
+  return best;
+}
+// Lightness + saturation (0 to 1) used for mood and tempo
+function lightSat(r,g,b){
+  r/=255; g/=255; b/=255;
+  const mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2;
+  const s = mx===mn ? 0 : (l>0.5 ? (mx-mn)/(2-mx-mn) : (mx-mn)/(mx+mn));
+  return {l, s};
+}
+// Small HTML snippet: "#hex -> closest name (instrument)"
+function matchHTML(hex, c){
+  return `<div class="mini" style="background:${hex}"></div><b>${hex}</b>
+          <span class="arrow">➜</span>
+          <div class="mini" style="background:${c.hex}"></div>
+          <span><b>${c.name}</b> ${c.emoji} ${c.inst}</span>`;
+}
+
+/* ---------- 3. DRAWING CANVAS + UPLOAD ---------- */
+const draw = document.getElementById('draw');
+const dctx = draw.getContext('2d', {willReadFrequently:true});
+let brushColor = byType('kick').hex;
+let lastPt = null, isDrawing = false;
+
+function clearCanvas(){ dctx.fillStyle='#000000'; dctx.fillRect(0,0,W,H); } // black = silence
+clearCanvas();
+
+// Build the palette buttons from our 12 colors
+const paletteEl = document.getElementById('palette');
+COLORS.forEach(c=>{
+  const b = document.createElement('button');
+  b.className = 'swatch'; b.style.background = c.hex;
+  b.title = `${c.name} = ${c.inst}`;
+  b.onclick = ()=>setBrush(c.hex, b);
+  paletteEl.appendChild(b);
+});
+function setBrush(hex, el){
+  brushColor = hex;
+  document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+paletteEl.firstChild.classList.add('active');
+document.getElementById('customColor').oninput = e => setBrush(e.target.value, null);
+document.getElementById('eraserBtn').onclick = () => setBrush('#000000', null);
+document.getElementById('clearBtn').onclick = clearCanvas;
+
+// Convert mouse/touch position to canvas pixels
+function canvasPos(e){
+  const r = draw.getBoundingClientRect();
+  return {x:(e.clientX-r.left)*W/r.width, y:(e.clientY-r.top)*H/r.height};
+}
+function strokeTo(p){
+  dctx.strokeStyle = brushColor; dctx.fillStyle = brushColor;
+  dctx.lineWidth = +document.getElementById('size').value;
+  dctx.lineCap = 'round'; dctx.lineJoin = 'round';
+  dctx.beginPath();
+  if (lastPt){ dctx.moveTo(lastPt.x,lastPt.y); dctx.lineTo(p.x,p.y); dctx.stroke(); }
+  else { dctx.arc(p.x,p.y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill(); }
+  lastPt = p;
+}
+draw.addEventListener('pointerdown', e=>{ isDrawing=true; lastPt=null; draw.setPointerCapture(e.pointerId); strokeTo(canvasPos(e)); });
+draw.addEventListener('pointermove', e=>{
+  const p = canvasPos(e);
+  if (isDrawing) strokeTo(p);
+  // Live hex readout under the pointer
+  const d = dctx.getImageData(Math.min(W-1,Math.max(0,p.x|0)), Math.min(H-1,Math.max(0,p.y|0)), 1, 1).data;
+  const hex = rgbToHex(d[0],d[1],d[2]);
+  document.getElementById('readout').innerHTML = matchHTML(hex, closestColor({r:d[0],g:d[1],b:d[2]}));
+});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>draw.addEventListener(ev,()=>{ isDrawing=false; lastPt=null; }));
+
+// Upload: draw the image to fill the square ("cover" fit)
+function loadImageFile(file){
+  if (!file || !file.type.startsWith('image/')) return;
+  const img = new Image();
+  img.onload = ()=>{
+    clearCanvas();
+    const s = Math.max(W/img.width, H/img.height);
+    const w = img.width*s, h = img.height*s;
+    dctx.drawImage(img,(W-w)/2,(H-h)/2,w,h);
+    URL.revokeObjectURL(img.src);
+  };
+  img.src = URL.createObjectURL(file);
+}
+document.getElementById('fileIn').onchange = e => loadImageFile(e.target.files[0]);
+// Drag and drop support
+const wrap = document.getElementById('canvasWrap');
+wrap.addEventListener('dragover', e=>{ e.preventDefault(); wrap.classList.add('dragging'); });
+wrap.addEventListener('dragleave', ()=>wrap.classList.remove('dragging'));
+wrap.addEventListener('drop', e=>{ e.preventDefault(); wrap.classList.remove('dragging'); loadImageFile(e.dataTransfer.files[0]); });
+
+// Random art: blobs and stripes in random palette colors (great for testing)
+document.getElementById('randomBtn').onclick = ()=>{
+  clearCanvas();
+  const pick = () => COLORS[Math.floor(Math.random()*(COLORS.length-1))].hex;
+  for (let i=0;i<14;i++){
+    dctx.fillStyle = pick();
+    if (Math.random()<0.6){
+      dctx.beginPath(); dctx.arc(Math.random()*W, Math.random()*H, 20+Math.random()*70, 0, Math.PI*2); dctx.fill();
+    } else {
+      dctx.fillRect(Math.random()*W, Math.random()*H, 20+Math.random()*120, 10+Math.random()*40);
+    }
+  }
+};
+
+/* ---------- Color key list + hex checker ---------- */
+document.getElementById('keyList').innerHTML = COLORS.map(c=>`
+  <div class="key-item"><div class="mini" style="background:${c.hex}"></div>
+  <div><b>${c.name}</b><small>${c.emoji} ${c.inst}</small></div></div>`).join('');
+
+const hexIn = document.getElementById('hexIn');
+function checkHex(){
+  let v = hexIn.value.trim();
+  if (!v.startsWith('#')) v = '#'+v;
+  const out = document.getElementById('hexOut');
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)){
+    const rgb = hexToRgb(v);
+    out.innerHTML = matchHTML(rgbToHex(rgb.r,rgb.g,rgb.b), closestColor(rgb));
+  } else out.innerHTML = '<span>Type a hex like #FF8800</span>';
+}
+hexIn.oninput = checkHex; checkHex();
+
+/* ---------- 4. PICTURE ANALYSIS ---------- */
+// Splits the picture into a 64 x 16 grid. Inside each square we sample pixels,
+// find each pixel's closest color, and the most popular color wins the square.
+function analyzePicture(){
+  const data = dctx.getImageData(0,0,W,H).data;
+  const cw = W/COLS, ch = H/ROWS, STEP = 2;
+  const totals = new Array(COLORS.length).fill(0);
+  const shadeSums = COLORS.map(()=>[0,0,0,0]);  // r,g,b,count for "average shade"
+  let samples=0, lightSum=0, satSum=0, colorful=0;
+  const grid = [];
+
+  for (let r=0;r<ROWS;r++){
+    const row = [];
+    for (let c=0;c<COLS;c++){
+      const votes = new Array(COLORS.length).fill(0);
+      const sums = COLORS.map(()=>[0,0,0,0]);
+      for (let y=r*ch; y<(r+1)*ch; y+=STEP){
+        for (let x=c*cw; x<(c+1)*cw; x+=STEP){
+          const i = ((y|0)*W + (x|0))*4;
+          const rgb = {r:data[i], g:data[i+1], b:data[i+2]};
+          const m = closestColor(rgb);
+          votes[m.index]++; totals[m.index]++; samples++;
+          const s = sums[m.index]; s[0]+=rgb.r; s[1]+=rgb.g; s[2]+=rgb.b; s[3]++;
+          const t = shadeSums[m.index]; t[0]+=rgb.r; t[1]+=rgb.g; t[2]+=rgb.b; t[3]++;
+          if (m.type !== 'rest'){ const ls = lightSat(rgb.r,rgb.g,rgb.b); lightSum+=ls.l; satSum+=ls.s; colorful++; }
+        }
+      }
+      // Winner of this square
+      let win = 0; votes.forEach((v,i)=>{ if (v>votes[win]) win=i; });
+      const s = sums[win];
+      row.push({ci:win, hex:rgbToHex(s[0]/s[3], s[1]/s[3], s[2]/s[3])});
+    }
+    grid.push(row);
+  }
+  return {
+    grid, totals, samples, colorful,
+    avgLight: colorful ? lightSum/colorful : 0,
+    avgSat: colorful ? satSum/colorful : 0,
+    shades: shadeSums.map(s => s[3] ? rgbToHex(s[0]/s[3], s[1]/s[3], s[2]/s[3]) : null),
+  };
+}
+
+/* ---------- 5. SONG BUILDER ---------- */
+const NOTE_NAMES = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+const MAJOR = [0,2,4,5,7,9,11];
+const MINOR = [0,2,3,5,7,8,10];
+// Which key the song is in depends on the most common color
+const KEY_FOR_COLOR = [0,7,2,9,4,5,10,3,8,1,6,11];
+
+// Turn a scale step (degree) into a MIDI note number
+function degMidi(deg, base, scale){
+  const o = Math.floor(deg/7), d = ((deg%7)+7)%7;
+  return base + scale[d] + 12*o;
+}
+// Move a note to the closest note that belongs to the current chord
+function snapToChord(midi, pcs){
+  for (let d=0; d<7; d++){
+    if (pcs.has((midi+d)%12)) return midi+d;
+    if (pcs.has(((midi-d)%12+12)%12)) return midi-d;
+  }
+  return midi;
+}
+
+function buildSong(an, helperOn){
+  const {grid, totals, avgLight, avgSat} = an;
+  const happy = avgLight >= 0.5;
+  const scale = happy ? MAJOR : MINOR;
+
+  // Key = based on the most common real color (not black)
+  let dom = 0;
+  totals.forEach((v,i)=>{ if (COLORS[i].type!=='rest' && (COLORS[dom].type==='rest' || v>totals[dom])) dom=i; });
+  const rootPc = KEY_FOR_COLOR[dom];
+  const tempo = Math.round(84 + avgSat*56);   // 84 to 140 BPM
+
+  // Chord progressions that always sound good
+  // Major: I V vi IV     Minor: i VI III VII
+  const prog = happy ? [0,4,5,3] : [0,5,2,6];
+  const padBase = 48 + rootPc;
+  const bassBase = 36 + rootPc - (rootPc>7 ? 12 : 0);
+  const melBase = 60 + rootPc - (rootPc>5 ? 12 : 0);
+
+  const chords = prog.map(deg=>{
+    const triad = [deg,deg+2,deg+4].map(d=>degMidi(d,padBase,scale));
+    const third = triad[1]-triad[0], fifth = triad[2]-triad[0];
+    const q = third===4 ? '' : (fifth===6 ? 'dim' : 'm');
+    return {deg, triad, pcs:new Set(triad.map(m=>m%12)), name:NOTE_NAMES[triad[0]%12]+q};
+  });
+
+  // Pentatonic melody notes (5-note scale = almost impossible to sound bad)
+  const pentDegs = happy ? [0,1,2,4,5] : [0,2,3,4,6];
+  const melody = [];
+  for (let o=0;o<3;o++) pentDegs.forEach(d=>melody.push(degMidi(d+7*o, melBase, scale)));
+  melody.push(degMidi(21, melBase, scale));
+  const rowToMidi = row => melody[Math.round((ROWS-1-row)/(ROWS-1)*(melody.length-1))];
+
+  // Count each color in every column, plus its average height (centroid)
+  const colInfo = [];
+  for (let c=0;c<COLS;c++){
+    const counts = new Array(COLORS.length).fill(0), rowSum = new Array(COLORS.length).fill(0);
+    for (let r=0;r<ROWS;r++){ const ci=grid[r][c].ci; counts[ci]++; rowSum[ci]+=r; }
+    colInfo.push({counts, center: rowSum.map((s,i)=>counts[i] ? s/counts[i] : -1)});
+  }
+  const cnt = (t,col) => colInfo[col].counts[IDX[t]];
+  const center = (t,col) => colInfo[col].center[IDX[t]];
+  const barAmount = (t,bar) => { let s=0; for (let k=0;k<16;k++) s+=cnt(t,bar*16+k); return s; };
+  const near = (t,col,rad) => { const bar=Math.floor(col/16); for (let k=-rad;k<=rad;k++){ const cc=col+k; if (Math.floor(cc/16)===bar && cc>=0 && cc<COLS && cnt(t,cc)>0) return true; } return false; };
+  const loud = n => Math.min(1, 0.5 + n/ROWS*1.5);
+
+  // Allowed steps for each drum so the beat stays groovy
+  const KICK_STEPS = new Set([0,3,6,8,10,11,14]);
+  const TOM_STEPS = new Set([6,13,14,15]);
+  const WOOD_STEPS = new Set([3,6,11,14]);
+  const BASS_STEPS = new Set([3,6,8,10,14]);
+
+  const tracks = {}; TRACK_ORDER.forEach(t=>tracks[t]=new Array(COLS).fill(null));
+  let lastPiano = {midi:-1, col:-9};
+
+  for (let bar=0; bar<4; bar++){
+    const chord = chords[bar];
+    for (let step=0; step<16; step++){
+      const col = bar*16+step;
+
+      // KICK (red)
+      if (cnt('kick',col)>0 && KICK_STEPS.has(step)) tracks.kick[col] = {vel:loud(cnt('kick',col))};
+      if (step===0 && barAmount('kick',bar)>0 && !tracks.kick[col]) tracks.kick[col] = {vel:0.8};
+
+      // SNARE (orange): main hits on beats 2 and 4, soft "ghost" notes elsewhere
+      if ((step===4||step===12) && near('snare',col,2)) tracks.snare[col] = {vel:0.85};
+      else if ([7,14,15].includes(step) && cnt('snare',col)>=2) tracks.snare[col] = {vel:0.35};
+
+      // CLAP (skin tone)
+      if ((step===4||step===12) && near('clap',col,2)) tracks.clap[col] = {vel:0.8};
+      else if (step===10 && cnt('clap',col)>0) tracks.clap[col] = {vel:0.5};
+
+      // HI-HAT (yellow): 8th notes, 16th notes if there is lots of yellow
+      if (cnt('hat',col)>0 && (step%2===0 || cnt('hat',col)>=3))
+        tracks.hat[col] = {vel:(step%4===2 ? 0.9 : step%2===0 ? 0.65 : 0.4) * (0.6+0.4*Math.min(1,cnt('hat',col)/4))};
+
+      // SHAKER (white): off-beats
+      if (cnt('shaker',col)>0 && (step%2===1 || cnt('shaker',col)>=5)) tracks.shaker[col] = {vel:0.55};
+
+      // TOM (brown): fills near the end of each bar, pitch from height
+      if (cnt('tom',col)>0 && TOM_STEPS.has(step))
+        tracks.tom[col] = {vel:loud(cnt('tom',col)), freq:90 + (ROWS-1-center('tom',col))/(ROWS-1)*140};
+
+      // WOODBLOCK (gray): syncopated clicks
+      if (cnt('wood',col)>0 && WOOD_STEPS.has(step))
+        tracks.wood[col] = {vel:0.6, freq:700 + (ROWS-1-center('wood',col))/(ROWS-1)*600};
+
+      // BASS (green): chord root on beat 1, then root or fifth
+      const root = degMidi(chord.deg, bassBase, scale), fifth = degMidi(chord.deg+4, bassBase, scale);
+      if (step===0 && barAmount('bass',bar)>0) tracks.bass[col] = {vel:0.9, midi:root, dur:3};
+      else if (cnt('bass',col)>0 && BASS_STEPS.has(step))
+        tracks.bass[col] = {vel:loud(cnt('bass',col)), midi: center('bass',col) < ROWS/2 ? fifth : root, dur:2};
+
+      // PIANO (blue): melody from the color's height, snapped to the chord on main beats
+      if (cnt('piano',col)>0 && (step%2===0 || cnt('piano',col)>=5)){
+        let m = rowToMidi(Math.round(center('piano',col)));
+        if (step%4===0) m = snapToChord(m, chord.pcs);
+        // Skip boring repeats so the melody has room to breathe
+        if (!(m===lastPiano.midi && col-lastPiano.col<=2 && step!==0)){
+          tracks.piano[col] = {vel:loud(cnt('piano',col)), midi:m};
+          lastPiano = {midi:m, col};
+        }
+      }
+
+      // BELLS (pink): sparkly high notes
+      if (cnt('bells',col)>0 && (step%4===0 || step%4===3)){
+        let m = rowToMidi(Math.round(center('bells',col))) + 12;
+        if (step%8===0) m = snapToChord(m, chord.pcs);
+        while (m>96) m -= 12;
+        tracks.bells[col] = {vel:loud(cnt('bells',col)), midi:m};
+      }
+
+      // PAD (purple): holds the whole chord for the bar
+      if (step===0 && barAmount('pad',bar)>0)
+        tracks.pad[col] = {vel:0.55 + Math.min(0.45, barAmount('pad',bar)/(16*ROWS)*2), midis:chord.triad, dur:16};
+    }
+  }
+
+  // Helper parts: if the picture has no drums or no melody, add soft ones
+  if (helperOn){
+    if (!DRUM_TYPES.some(t=>tracks[t].some(Boolean))){
+      for (let col=0; col<COLS; col++){
+        const s = col%16;
+        if (s===0||s===8) tracks.kick[col] = {vel:0.55, helper:true};
+        if (s===4||s===12) tracks.clap[col] = {vel:0.45, helper:true};
+        if (s%2===0) tracks.hat[col] = {vel:0.35, helper:true};
+      }
+    }
+    if (!MELODY_TYPES.some(t=>tracks[t].some(Boolean))){
+      for (let bar=0; bar<4; bar++){
+        tracks.pad[bar*16] = {vel:0.45, midis:chords[bar].triad, dur:16, helper:true};
+        tracks.bass[bar*16] = {vel:0.6, midi:degMidi(chords[bar].deg, bassBase, scale), dur:4, helper:true};
+      }
+    }
+  }
+
+  return {
+    tracks, chords, tempo, happy, scale, melBase, bassBase, padBase,
+    keyName: NOTE_NAMES[rootPc] + (happy ? ' major' : ' minor'),
+  };
+}
+
+/* ---------- 6. SOUND ENGINE (Web Audio) ---------- */
+// Every instrument is built from oscillators (tones) and noise (hiss),
+// shaped by filters and volume envelopes. Works for live play AND WAV export.
+const noiseCache = new WeakMap();
+function noiseBuf(ctx){
+  if (noiseCache.has(ctx)) return noiseCache.get(ctx);
+  const b = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate), d = b.getChannelData(0);
+  for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+  noiseCache.set(ctx,b); return b;
+}
+function noise(ctx,t,dur){ const s=ctx.createBufferSource(); s.buffer=noiseBuf(ctx); s.start(t); s.stop(t+dur); return s; }
+const mtof = m => 440*Math.pow(2,(m-69)/12);  // MIDI number to frequency
+// Volume envelope: quick rise, then fade out
+function vca(ctx,out,t,attack,peak,decay){
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(Math.max(peak,0.0002), t+attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+attack+decay);
+  g.connect(out); return g;
+}
+function osc(ctx,type,freq,t,stop,dest){ const o=ctx.createOscillator(); o.type=type; o.frequency.value=freq; o.connect(dest); o.start(t); o.stop(stop); return o; }
+
+const INSTR = {
+  kick(ctx,out,t,ev){
+    const o = ctx.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(160,t); o.frequency.exponentialRampToValueAtTime(42,t+0.13);
+    o.connect(vca(ctx,out,t,0.003,0.95*ev.vel,0.4)); o.start(t); o.stop(t+0.5);
+  },
+  snare(ctx,out,t,ev){
+    const f = ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value=1500;
+    noise(ctx,t,0.25).connect(f).connect(vca(ctx,out,t,0.002,0.5*ev.vel,0.18));
+    const o = ctx.createOscillator(); o.type='triangle';
+    o.frequency.setValueAtTime(220,t); o.frequency.exponentialRampToValueAtTime(160,t+0.1);
+    o.connect(vca(ctx,out,t,0.002,0.35*ev.vel,0.1)); o.start(t); o.stop(t+0.15);
+  },
+  hat(ctx,out,t,ev){
+    const f = ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value=7500;
+    noise(ctx,t,0.08).connect(f).connect(vca(ctx,out,t,0.001,0.22*ev.vel,0.05));
+  },
+  clap(ctx,out,t,ev){
+    // 3 tiny bursts close together sound like many hands clapping
+    const f = ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=1300; f.Q.value=1.1;
+    const g = ctx.createGain(), p = 0.6*ev.vel;
+    g.gain.setValueAtTime(0.0001,t);
+    [0,0.011,0.022].forEach(o=>{ g.gain.setValueAtTime(p,t+o); g.gain.exponentialRampToValueAtTime(p*0.05+0.0001,t+o+0.009); });
+    g.gain.setValueAtTime(p*0.8,t+0.033); g.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
+    noise(ctx,t,0.3).connect(f).connect(g).connect(out);
+  },
+  tom(ctx,out,t,ev){
+    const f0 = ev.freq||130, o = ctx.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(f0*0.6,t+0.3);
+    o.connect(vca(ctx,out,t,0.003,0.7*ev.vel,0.35)); o.start(t); o.stop(t+0.45);
+  },
+  shaker(ctx,out,t,ev){
+    const f = ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=6000; f.Q.value=0.9;
+    noise(ctx,t,0.12).connect(f).connect(vca(ctx,out,t,0.015,0.2*ev.vel,0.06));
+  },
+  wood(ctx,out,t,ev){
+    const f0 = ev.freq||900, o = ctx.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(f0*1.3,t); o.frequency.exponentialRampToValueAtTime(f0,t+0.02);
+    o.connect(vca(ctx,out,t,0.001,0.4*ev.vel,0.07)); o.start(t); o.stop(t+0.12);
+  },
+  bass(ctx,out,t,ev,sd){
+    const dur = (ev.dur||2)*sd, f = mtof(ev.midi);
+    const g = vca(ctx,out,t,0.008,0.32*ev.vel,dur+0.1);
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=4;
+    lp.frequency.setValueAtTime(900,t); lp.frequency.exponentialRampToValueAtTime(180,t+dur);
+    lp.connect(g);
+    osc(ctx,'sawtooth',f,t,t+dur+0.2,lp);
+    osc(ctx,'sine',f,t,t+dur+0.2,g);   // sub tone for extra thump
+  },
+  piano(ctx,out,t,ev){
+    const f = mtof(ev.midi), g = vca(ctx,out,t,0.004,0.22*ev.vel,1.1);
+    osc(ctx,'triangle',f,t,t+1.2,g);
+    const a = ctx.createGain(); a.gain.value=0.35; a.connect(g);
+    osc(ctx,'sine',f*2,t,t+1.2,a);
+  },
+  bells(ctx,out,t,ev){
+    // Bells use "out of tune" overtones (2.76x, 5.4x) which makes a metal sound
+    const f = mtof(ev.midi), g = vca(ctx,out,t,0.002,0.14*ev.vel,1.6);
+    [[1,1],[2.76,0.35],[5.4,0.12]].forEach(([mult,amp])=>{
+      const a = ctx.createGain(); a.gain.value=amp; a.connect(g);
+      osc(ctx,'sine',f*mult,t,t+1.7,a);
+    });
+  },
+  pad(ctx,out,t,ev,sd){
+    const dur = (ev.dur||16)*sd, peak = 0.06*ev.vel;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(peak,t+0.35);
+    g.gain.setValueAtTime(peak,t+Math.max(0.4,dur-0.1)); g.gain.linearRampToValueAtTime(0,t+dur+0.6);
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1400;
+    lp.connect(g).connect(out);
+    // Two slightly out-of-tune saws per note = big warm "chorus" sound
+    ev.midis.forEach(m=>[-7,7].forEach(det=>{ const o=osc(ctx,'sawtooth',mtof(m),t,t+dur+0.7,lp); o.detune.value=det; }));
+  },
+};
+
+// Fake room echo (reverb) made from fading noise
+function makeImpulse(ctx,secs,decay){
+  const len = Math.floor(ctx.sampleRate*secs), b = ctx.createBuffer(2,len,ctx.sampleRate);
+  for (let c=0;c<2;c++){ const d=b.getChannelData(c); for (let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,decay); }
+  return b;
+}
+// Master: everything -> compressor (evens out volume) + a little reverb -> speakers
+function buildMaster(ctx){
+  const input = ctx.createGain(); input.gain.value = 0.9;
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value=-14; comp.ratio.value=4;
+  const verb = ctx.createConvolver(); verb.buffer = makeImpulse(ctx,2.2,3);
+  const wet = ctx.createGain(); wet.gain.value = 0.22;
+  const output = ctx.createGain();
+  input.connect(comp);
+  input.connect(verb).connect(wet).connect(comp);
+  comp.connect(output).connect(ctx.destination);
+  return {input, output};
+}
+
+/* ---------- 7. PLAYBACK, VISUALS, WAV ---------- */
+const INTRO_MUTE = new Set(['kick','snare','clap','tom']);  // intro = no big drums yet
+
+// The song plan: which passes to play and how long each step is
+function getPlan(){
+  const stepDur = 60/song.tempo/4;          // one 16th note
+  const full = document.getElementById('fullChk').checked;
+  const passes = full
+    ? [{label:'Intro 🌙', mute:INTRO_MUTE}, {label:'Main Groove 🔥', mute:new Set()}]
+    : [{label:'Loop 🔁', mute:new Set()}];
+  const total = passes.length*COLS*stepDur + (full ? 16*stepDur : 0);
+  return {stepDur, passes, ending:full, total};
+}
+
+// Schedule every note of the song starting at "start"
+function scheduleSong(ctx, dest, start, plan){
+  const sd = plan.stepDur;
+  plan.passes.forEach((pass,p)=>{
+    for (let col=0; col<COLS; col++){
+      const t = start + (p*COLS+col)*sd;
+      TRACK_ORDER.forEach(type=>{
+        const ev = song.tracks[type][col];
+        if (ev && !pass.mute.has(type)) INSTR[type](ctx,dest,t,ev,sd);
+      });
+    }
+  });
+  if (plan.ending){
+    // Ending: big home chord so the song feels finished
+    const t = start + plan.passes.length*COLS*sd;
+    const home = song.chords[0].triad;
+    INSTR.kick(ctx,dest,t,{vel:0.9});
+    INSTR.pad(ctx,dest,t,{vel:0.8, midis:home, dur:12},sd);
+    INSTR.piano(ctx,dest,t,{vel:0.8, midi:home[0]+12});
+    INSTR.piano(ctx,dest,t+sd,{vel:0.6, midi:home[2]+12});
+    INSTR.bells(ctx,dest,t+sd*2,{vel:0.7, midi:home[0]+24});
+    INSTR.bass(ctx,dest,t,{vel:0.9, midi:degMidi(0,song.bassBase,song.scale), dur:8},sd);
+  }
+}
+
+let audioCtx = null, liveBus = null, playInfo = null, song = null, analysis = null;
+
+function play(){
+  if (!song) return;
+  if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  audioCtx.resume();
+  stop();
+  liveBus = buildMaster(audioCtx);
+  const plan = getPlan(), start = audioCtx.currentTime + 0.12;
+  scheduleSong(audioCtx, liveBus.input, start, plan);
+  playInfo = {start, plan, lastStep:-1};
+}
+function stop(){
+  if (liveBus){
+    const bus = liveBus;
+    bus.output.gain.setValueAtTime(0, audioCtx.currentTime);
+    setTimeout(()=>bus.output.disconnect(), 60);
+    liveBus = null;
+  }
+  playInfo = null;
+  document.getElementById('nowPlaying').textContent = 'Press Play to hear it!';
+  document.getElementById('playhead') && (document.getElementById('playhead').style.display='none');
+  document.getElementById('mapHead').style.display = 'none';
+}
+
+// Particle visualizer: a colorful pop for every note that plays
+const vis = document.getElementById('vis'), vctx = vis.getContext('2d');
+let particles = [];
+function spawn(type, col, ev){
+  const c = byType(type), lane = TRACK_ORDER.indexOf(type);
+  particles.push({
+    x: (col+0.5)/COLS*vis.width + (Math.random()-0.5)*10,
+    y: (lane+0.5)/TRACK_ORDER.length*vis.height,
+    r: 6 + ev.vel*10, color: c.hex, life: 1,
+  });
+}
+
+// Main animation loop: moves the playhead and draws particles
+function loop(){
+  if (playInfo && audioCtx){
+    const {start, plan} = playInfo;
+    const elapsed = audioCtx.currentTime - start;
+    const step = Math.floor(elapsed/plan.stepDur);
+    const mainSteps = plan.passes.length*COLS;
+
+    if (elapsed >= plan.total + 0.3){
+      // Song finished
+      if (document.getElementById('loopChk').checked) play(); else stop();
+    } else if (step >= 0){
+      if (step < mainSteps){
+        const pass = plan.passes[Math.floor(step/COLS)], col = step%COLS;
+        // Spawn particles for any notes we just passed
+        for (let s=playInfo.lastStep+1; s<=step; s++){
+          const ps = plan.passes[Math.floor(s/COLS)], cc = s%COLS;
+          TRACK_ORDER.forEach(t=>{ const ev=song.tracks[t][cc]; if (ev && !ps.mute.has(t)) spawn(t,cc,ev); });
+        }
+        const bar = Math.floor(col/16);
+        document.getElementById('nowPlaying').textContent =
+          `Now playing: ${pass.label}  |  Bar ${bar+1} of 4  |  Chord ${song.chords[bar].name}`;
+        const ph = document.getElementById('playhead');
+        ph.style.display='block'; ph.style.left = (140 + col*18) + 'px';
+        const mh = document.getElementById('mapHead');
+        mh.style.display='block'; mh.style.left = (col/COLS*100) + '%';
+      } else {
+        document.getElementById('nowPlaying').textContent = 'Now playing: Ending 🎉';
+        if (playInfo.lastStep < mainSteps) for (let i=0;i<20;i++) spawn(TRACK_ORDER[i%TRACK_ORDER.length], Math.random()*COLS, {vel:1});
+      }
+      playInfo.lastStep = step;
+    }
+  }
+  // Draw particles with a fading trail
+  vctx.fillStyle = 'rgba(9,7,32,0.28)';
+  vctx.fillRect(0,0,vis.width,vis.height);
+  particles.forEach(p=>{
+    p.life -= 0.025; p.r += 0.8;
+    vctx.globalAlpha = Math.max(0,p.life);
+    vctx.fillStyle = p.color; vctx.strokeStyle = '#0b0920'; vctx.lineWidth = 3;
+    vctx.beginPath(); vctx.arc(p.x,p.y,p.r,0,Math.PI*2); vctx.fill(); vctx.stroke();
+  });
+  vctx.globalAlpha = 1;
+  particles = particles.filter(p=>p.life>0);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// Render the song offline (super fast) and save it as a .wav file
+async function downloadWav(){
+  if (!song) return;
+  const btn = document.getElementById('wavBtn');
+  btn.disabled = true; btn.textContent = '⏳ Rendering...';
+  try {
+    const plan = getPlan(), sr = 44100, dur = plan.total + 2.5;
+    const off = new OfflineAudioContext(2, Math.ceil(sr*dur), sr);
+    const m = buildMaster(off);
+    scheduleSong(off, m.input, 0.05, plan);
+    const buf = await off.startRendering();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(bufferToWav(buf));
+    a.download = `color-beats-${song.keyName.replace(' ','-')}-${song.tempo}bpm.wav`;
+    a.click();
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Download Song (.wav)';
+  }
+}
+// Pack raw audio numbers into a WAV file (16-bit)
+function bufferToWav(buf){
+  const nCh = buf.numberOfChannels, sr = buf.sampleRate, len = buf.length;
+  const bytes = 44 + len*nCh*2, ab = new ArrayBuffer(bytes), v = new DataView(ab);
+  let p = 0;
+  const ws = s => { for (const ch of s) v.setUint8(p++, ch.charCodeAt(0)); };
+  const u32 = x => { v.setUint32(p,x,true); p+=4; };
+  const u16 = x => { v.setUint16(p,x,true); p+=2; };
+  ws('RIFF'); u32(bytes-8); ws('WAVE'); ws('fmt '); u32(16); u16(1); u16(nCh);
+  u32(sr); u32(sr*nCh*2); u16(nCh*2); u16(16); ws('data'); u32(len*nCh*2);
+  const chans = [...Array(nCh)].map((_,i)=>buf.getChannelData(i));
+  for (let i=0;i<len;i++) for (let c=0;c<nCh;c++){
+    const s = Math.max(-1, Math.min(1, chans[c][i]));
+    v.setInt16(p, s<0 ? s*0x8000 : s*0x7FFF, true); p+=2;
+  }
+  return new Blob([ab], {type:'audio/wav'});
+}
+
+/* ---------- 8. RESULTS UI ---------- */
+function showResults(){
+  const res = document.getElementById('results');
+  res.style.display = 'block';
+
+  // Song info chips
+  const noteCount = TRACK_ORDER.reduce((n,t)=>n+song.tracks[t].filter(Boolean).length, 0);
+  document.getElementById('chips').innerHTML = `
+    <div class="chip">🎼 Key: <span>${song.keyName}</span></div>
+    <div class="chip">${song.happy ? '😄' : '🌙'} Mood: <span>${song.happy ? 'Happy (bright picture)' : 'Moody (dark picture)'}</span></div>
+    <div class="chip">⏱️ Tempo: <span>${song.tempo} BPM</span></div>
+    <div class="chip">🎹 Chords: <span>${song.chords.map(c=>c.name).join('  ➜  ')}</span></div>
+    <div class="chip">🎵 Notes: <span>${noteCount} per loop</span></div>`;
+
+  // Color breakdown (sorted biggest first)
+  const order = COLORS.map((c,i)=>i).filter(i=>analysis.totals[i]>0).sort((a,b)=>analysis.totals[b]-analysis.totals[a]);
+  document.getElementById('breakdown').innerHTML = order.map(i=>{
+    const c = COLORS[i], pct = analysis.totals[i]/analysis.samples*100;
+    return `<div class="break-item">
+      <div class="mini" style="background:${analysis.shades[i]};width:34px;height:34px" title="Average shade ${analysis.shades[i]}"></div>
+      <div class="bar-outer"><div class="bar-inner" style="width:${Math.max(2,pct)}%;background:${c.hex}"></div>
+      <div class="bar-label"><span>${c.emoji} ${c.name} = ${c.inst}</span><span>${pct.toFixed(1)}%</span></div></div></div>`;
+  }).join('');
+
+  // Pixel map of color buckets
+  const map = document.getElementById('map'), mctx = map.getContext('2d');
+  const cw = map.width/COLS, ch = map.height/ROWS;
+  analysis.grid.forEach((row,r)=>row.forEach((cell,c)=>{
+    mctx.fillStyle = COLORS[cell.ci].hex; mctx.fillRect(c*cw, r*ch, cw, ch);
+  }));
+  map.onmousemove = e=>{
+    const rect = map.getBoundingClientRect();
+    const c = Math.min(COLS-1, Math.floor((e.clientX-rect.left)/rect.width*COLS));
+    const r = Math.min(ROWS-1, Math.floor((e.clientY-rect.top)/rect.height*ROWS));
+    const cell = analysis.grid[r][c];
+    document.getElementById('mapReadout').innerHTML = matchHTML(cell.hex, COLORS[cell.ci]) + `<span style="color:var(--muted)">(beat ${c%16+1}, bar ${Math.floor(c/16)+1})</span>`;
+  };
+
+  // Beat grid
+  let html = `<div class="seq-row seq-head"><div class="seq-label">Bar / Chord</div>` +
+    song.chords.map((c,i)=>`<div class="cell-bar" style="width:${16*18}px">Bar ${i+1}: ${c.name}</div>`).join('') + `</div>`;
+  TRACK_ORDER.forEach(type=>{
+    const c = byType(type);
+    html += `<div class="seq-row"><div class="seq-label"><i style="background:${c.hex}"></i>${c.emoji} ${c.inst}</div>`;
+    for (let col=0; col<COLS; col++){
+      const ev = song.tracks[type][col];
+      let cls = 'cell' + (col%16===15 ? ' barline' : col%4===3 ? ' beat' : '');
+      if (ev) cls += ev.helper ? ' on helper' : ' on';
+      html += `<div class="${cls}" style="--c:${c.hex};--o:${ev ? (0.35+ev.vel*0.65).toFixed(2) : 0}"></div>`;
+    }
+    html += `</div>`;
+  });
+  html += `<div class="playhead" id="playhead"></div>`;
+  const inner = document.getElementById('seqInner');
+  inner.style.width = (140 + COLS*18) + 'px';
+  inner.innerHTML = html;
+}
+
+// The big button: analyze, build, show, and play
+document.getElementById('makeBtn').onclick = ()=>{
+  const msg = document.getElementById('msg');
+  msg.textContent = '🔎 Reading your colors...';
+  setTimeout(()=>{   // small delay so the message shows before the heavy math
+    analysis = analyzePicture();
+    if (analysis.colorful === 0){
+      msg.textContent = '🤫 Your picture is all black, which means silence! Draw something colorful first.';
+      return;
+    }
+    song = buildSong(analysis, document.getElementById('helperChk').checked);
+    msg.textContent = '✅ Song made! Scroll down to see and hear it.';
+    showResults();
+    document.getElementById('results').scrollIntoView({behavior:'smooth'});
+    play();
+  }, 30);
+};
+document.getElementById('playBtn').onclick = play;
+document.getElementById('stopBtn').onclick = stop;
+document.getElementById('wavBtn').onclick = downloadWav;
+// Turning helper on/off rebuilds the song from the same picture
+document.getElementById('helperChk').onchange = e=>{
+  if (!analysis) return;
+  const wasPlaying = !!playInfo;
+  song = buildSong(analysis, e.target.checked);
+  showResults();
+  if (wasPlaying) play();
+};
+
+/* ---------- Night sky stars ---------- */
+const sky = document.getElementById('sky');
+for (let i=0;i<110;i++){
+  const s = document.createElement('div'), size = Math.random()*2.6+1;
+  s.className = 'star';
+  s.style.cssText = `width:${size}px;height:${size}px;left:${Math.random()*100}%;top:${Math.random()*100}%;animation-delay:${Math.random()*3}s`;
+  sky.appendChild(s);
+}
+</script>
+</body>
+</html>
