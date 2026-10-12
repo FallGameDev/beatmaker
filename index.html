@@ -191,6 +191,9 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
         <button class="btn pink" id="clearBtn">🗑️ Clear</button>
       </div>
 
+      <!-- Only shows up after you upload an animated GIF -->
+      <div class="readout" id="gifInfo" style="display:none"></div>
+
       <!-- Only shows up after you upload an image -->
       <label class="chk" id="overlayWrap"><input type="checkbox" id="overlayChk"> 🎨 Overlay: color over my image and light up what's playing</label>
 
@@ -227,7 +230,7 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
     <ol>
       <li><b>Pixels:</b> Every picture is made of tiny dots called pixels. Each one has a <b>hex code</b> like <code>#FF0000</code>. The 3 pairs are how much Red, Green, and Blue light it has (00 = none, FF = the most).</li>
       <li><b>Closest color:</b> We measure the "distance" between your pixel and each of our 12 color buckets, like measuring how far apart two points are on a map. The shortest distance wins.</li>
-      <li><b>Sheet music:</b> The picture is read <b>left to right</b> in 64 slices. That makes 4 bars of music (16 beats each). Colors <b>higher up</b> play <b>higher notes</b>.</li>
+      <li><b>Sheet music:</b> The picture is read <b>left to right</b> in 64 slices. That makes 4 bars of music (16 beats each). Colors <b>higher up</b> play <b>higher notes</b>. Upload a <b>GIF</b> and each bar uses a different frame, like a flip book turned into music!</li>
       <li><b>Sounding good:</b> All notes stay in one <b>key</b> (a family of notes that fit together), drums snap to a steady beat, and the chords change every bar. Bright pictures get a happy <b>major</b> key, dark pictures get a moody <b>minor</b> key, and colorful pictures play faster!</li>
     </ol>
   </section>
@@ -301,7 +304,7 @@ const COLORS = [
   {name:'Purple',    hex:'#8E24AA', refs:['#800080','#8E24AA','#4A148C','#7E57C2','#B39DDB'],         inst:'Synth Pad', emoji:'🌌', type:'pad'},
   {name:'Pink',      hex:'#F06292', refs:['#FF69B4','#F06292','#FF00FF','#F8BBD0','#EC407A'],         inst:'Bells', emoji:'🔔', type:'bells'},
   {name:'Brown',     hex:'#6D4C41', refs:['#795548','#6D4C41','#4E342E','#8D6E63','#5D4037'],         inst:'Tom Drum', emoji:'🛢️', type:'tom'},
-  {name:'Skin Tone', hex:'#FFDBAC', refs:['#FFDBAC'],                                                  inst:'Hand Clap', emoji:'👏', type:'clap'},
+  {name:'Skin Tone', hex:'#FFDBAC', refs:['#8D5524','#C68642','#E0AC69','#F1C27D','#FFDBAC','#D2A493'],     inst:'Hand Clap', emoji:'👏', type:'clap'},
   {name:'White',     hex:'#F5F5F5', refs:['#FFFFFF','#F5F5F5','#E0E0E0'],                             inst:'Shaker', emoji:'🧂', type:'shaker'},
   {name:'Gray',      hex:'#9E9E9E', refs:['#808080','#9E9E9E','#616161','#BDBDBD'],                   inst:'Woodblock', emoji:'🪵', type:'wood'},
   {name:'Black',     hex:'#1A1A1A', refs:['#000000','#212121','#1A1A2E','#303030'],                   inst:'Rest (silence)', emoji:'🤫', type:'rest'},
@@ -337,7 +340,12 @@ function colorDist(a,b){
   return Math.sqrt((2+rm/256)*dr*dr + 4*dg*dg + (2+(255-rm)/256)*db*db);
 }
 // Find the closest named color for an {r,g,b}
+// A cache remembers answers for similar colors so big images and GIFs stay fast.
+const closestCache = new Map();
 function closestColor(rgb){
+  const key = ((rgb.r>>2)<<12) | ((rgb.g>>2)<<6) | (rgb.b>>2);
+  const hit = closestCache.get(key);
+  if (hit) return hit;
   let best = COLORS[0], bestD = Infinity;
   for (const c of COLORS){
     for (const ref of c.refRGB){
@@ -345,6 +353,7 @@ function closestColor(rgb){
       if (d < bestD){ bestD = d; best = c; }
     }
   }
+  closestCache.set(key, best);
   return best;
 }
 // Lightness + saturation (0 to 1) used for mood and tempo
@@ -403,7 +412,7 @@ function setUploaded(v){
   hasUpload = v;
   overlayGrid = null;   // picture changed, so old buckets no longer match
   document.getElementById('overlayWrap').style.display = v ? 'flex' : 'none';
-  if (!v) overlayChk.checked = false;
+  if (!v){ overlayChk.checked = false; stopGif(); }
 }
 overlayChk.onchange = () => {
   // If no song has been made for this picture yet, read its colors now
@@ -418,10 +427,13 @@ function drawOverlay(){
   octx.clearRect(0,0,W,H);
   const cw = W/COLS, ch = H/ROWS;
   const mute = playInfo && playInfo.mute;
+  // For GIFs that are playing, use the buckets from the frame on screen
+  const grid = (gif && gif.frameGrids && playInfo && playInfo.col != null)
+    ? gif.frameGrids[Math.floor(playInfo.col/16)] : overlayGrid;
 
   for (let c=0; c<COLS; c++){
     for (let r=0; r<ROWS; r++){
-      const color = COLORS[overlayGrid[r][c].ci];
+      const color = COLORS[grid[r][c].ci];
       if (color.type === 'rest') continue;   // black stays clear
       // Is this color's instrument actually playing in this column right now?
       const ev = song && song.tracks[color.type] && song.tracks[color.type][c];
@@ -452,12 +464,17 @@ function canvasPos(e){
   return {x:(e.clientX-r.left)*W/r.width, y:(e.clientY-r.top)*H/r.height};
 }
 function strokeTo(p){
-  dctx.strokeStyle = brushColor; dctx.fillStyle = brushColor;
-  dctx.lineWidth = +document.getElementById('size').value;
-  dctx.lineCap = 'round'; dctx.lineJoin = 'round';
-  dctx.beginPath();
-  if (lastPt){ dctx.moveTo(lastPt.x,lastPt.y); dctx.lineTo(p.x,p.y); dctx.stroke(); }
-  else { dctx.arc(p.x,p.y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill(); }
+  // With a GIF loaded, strokes also go on a see-through "paint layer"
+  // so your drawing stays on top of every frame of the animation.
+  const targets = gif ? [dctx, gif.pctx] : [dctx];
+  targets.forEach(ctx=>{
+    ctx.strokeStyle = brushColor; ctx.fillStyle = brushColor;
+    ctx.lineWidth = +document.getElementById('size').value;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (lastPt){ ctx.moveTo(lastPt.x,lastPt.y); ctx.lineTo(p.x,p.y); ctx.stroke(); }
+    else { ctx.arc(p.x,p.y,ctx.lineWidth/2,0,Math.PI*2); ctx.fill(); }
+  });
   lastPt = p;
 }
 draw.addEventListener('pointerdown', e=>{ isDrawing=true; lastPt=null; draw.setPointerCapture(e.pointerId); strokeTo(canvasPos(e)); });
@@ -471,19 +488,188 @@ draw.addEventListener('pointermove', e=>{
 });
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>draw.addEventListener(ev,()=>{ isDrawing=false; lastPt=null; }));
 
-// Upload: draw the image to fill the square ("cover" fit)
-function loadImageFile(file){
+// Draw any image or canvas so it fills the square ("cover" fit)
+function drawCover(ctx, src){
+  const sw = src.width, sh = src.height;
+  const s = Math.max(W/sw, H/sh), w = sw*s, h = sh*s;
+  ctx.drawImage(src,(W-w)/2,(H-h)/2,w,h);
+}
+
+// Upload: GIFs get decoded into frames, everything else is a still image
+async function loadImageFile(file){
   if (!file || !file.type.startsWith('image/')) return;
+  if (file.type === 'image/gif'){
+    try {
+      const frames = decodeGif(await file.arrayBuffer());
+      if (frames.length > 1){ startGif(frames); return; }
+    } catch (err){ console.warn('GIF decode failed, using first frame only', err); }
+  }
   const img = new Image();
   img.onload = ()=>{
+    stopGif();
     clearCanvas();
-    const s = Math.max(W/img.width, H/img.height);
-    const w = img.width*s, h = img.height*s;
-    dctx.drawImage(img,(W-w)/2,(H-h)/2,w,h);
+    drawCover(dctx, img);
     URL.revokeObjectURL(img.src);
     setUploaded(true);   // unlock the overlay option
   };
   img.src = URL.createObjectURL(file);
+}
+
+/* ---------- Animated GIF support ---------- */
+// gif = null when no GIF is loaded. Otherwise it holds:
+//   frames: [{canvas, delay}]   every frame, fully drawn
+//   paint/pctx: see-through layer with anything you draw on top
+//   free/nextAt: the frame shown when the song is NOT playing (normal animation)
+//   shown: which frame is on the canvas right now
+//   songFrames: the 4 frames used for bars 1 to 4 of the song
+//   frameGrids: the color buckets for each of those 4 frames
+let gif = null;
+const MAX_GIF_FRAMES = 120;   // keeps memory use reasonable for long GIFs
+
+function startGif(frames){
+  // Long GIFs: keep evenly spaced frames, and stretch their delays to keep the same speed
+  if (frames.length > MAX_GIF_FRAMES){
+    const stride = frames.length / MAX_GIF_FRAMES;
+    frames = Array.from({length:MAX_GIF_FRAMES}, (_,i)=>{
+      const f = frames[Math.floor(i*stride)];
+      return {canvas:f.canvas, delay:f.delay*stride};
+    });
+  }
+  const paint = document.createElement('canvas'); paint.width = W; paint.height = H;
+  gif = {frames, paint, pctx:paint.getContext('2d'), free:0, nextAt:0, shown:-1, songFrames:null, frameGrids:null};
+  setUploaded(true);
+  const info = document.getElementById('gifInfo');
+  info.style.display = 'flex';
+  info.innerHTML = `🎞️ <span><b>GIF loaded: ${frames.length} frames.</b> Each bar of your song uses a different frame, so the music changes as the GIF moves!</span>`;
+}
+function stopGif(){
+  gif = null;
+  document.getElementById('gifInfo').style.display = 'none';
+}
+// Put GIF frame i (plus your drawing) onto any 512x512 canvas
+function composeGifFrame(ctx, i){
+  ctx.fillStyle = '#000000'; ctx.fillRect(0,0,W,H);
+  drawCover(ctx, gif.frames[i].canvas);
+  ctx.drawImage(gif.paint, 0, 0);
+}
+// Called every animation frame: picks which GIF frame to show
+function tickGif(now){
+  if (!gif) return;
+  let want;
+  if (playInfo && playInfo.col != null && gif.songFrames){
+    // Song is playing: show the exact frame this bar was made from
+    want = gif.songFrames[Math.floor(playInfo.col/16)];
+  } else {
+    // Not playing: normal GIF animation using each frame's own delay
+    if (now >= gif.nextAt){
+      gif.free = (gif.free + 1) % gif.frames.length;
+      gif.nextAt = now + gif.frames[gif.free].delay;
+    }
+    want = gif.free;
+  }
+  if (want !== gif.shown){ composeGifFrame(dctx, want); gif.shown = want; }
+}
+
+// A small GIF decoder: reads the file's bytes and rebuilds every frame.
+// (Browsers only show the first frame when you draw a GIF to a canvas.)
+function decodeGif(buffer){
+  const b = new Uint8Array(buffer); let p = 0;
+  const u8 = () => b[p++];
+  const u16 = () => { const v = b[p] | (b[p+1]<<8); p += 2; return v; };
+  if (String.fromCharCode(b[0],b[1],b[2]) !== 'GIF') throw new Error('Not a GIF');
+  p = 6;
+  const w = u16(), h = u16(), flags = u8(); u8(); u8();   // skip background index + aspect
+  const readTable = n => { const t=[]; for (let i=0;i<n;i++){ t.push([b[p],b[p+1],b[p+2]]); p+=3; } return t; };
+  const globalTable = (flags & 0x80) ? readTable(1 << ((flags&7)+1)) : null;
+  // Data comes in little "sub-blocks"; glue them together
+  const readSubBlocks = () => {
+    const parts=[]; let total=0;
+    for (let n=u8(); n; n=u8()){ parts.push(b.subarray(p,p+n)); p+=n; total+=n; }
+    const out = new Uint8Array(total); let o=0;
+    parts.forEach(s=>{ out.set(s,o); o+=s.length; });
+    return out;
+  };
+
+  const full = document.createElement('canvas'); full.width = w; full.height = h;
+  const fctx = full.getContext('2d', {willReadFrequently:true});
+  const frames = [];
+  let ctrl = {disposal:0, delay:100, trans:-1};
+
+  while (p < b.length){
+    const block = u8();
+    if (block === 0x21){                       // extension block
+      const label = u8();
+      if (label === 0xF9){                     // graphic control: delay, transparency, disposal
+        u8(); const pf = u8(), delay = u16(), ti = u8(); u8();
+        ctrl = {disposal:(pf>>2)&7, delay: delay < 2 ? 100 : delay*10, trans: (pf&1) ? ti : -1};
+      } else readSubBlocks();                  // skip comments, app info, etc.
+    } else if (block === 0x2C){                // an image (frame)
+      const x=u16(), y=u16(), iw=u16(), ih=u16(), lf=u8();
+      const table = (lf & 0x80) ? readTable(1 << ((lf&7)+1)) : globalTable;
+      const interlaced = !!(lf & 0x40);
+      const minCode = u8();
+      const pixels = lzwDecode(minCode, readSubBlocks(), iw*ih);
+      const saved = ctrl.disposal === 3 ? fctx.getImageData(0,0,w,h) : null;
+
+      // Paint this frame's pixels on top of the previous picture
+      const patch = fctx.getImageData(x,y,iw,ih), pd = patch.data;
+      const rowMap = interlaced ? interlaceRows(ih) : null;
+      for (let row=0; row<ih; row++){
+        const realRow = rowMap ? rowMap[row] : row;
+        for (let col=0; col<iw; col++){
+          const ci = pixels[row*iw+col];
+          if (ci === ctrl.trans || !table || !table[ci]) continue;
+          const o = (realRow*iw+col)*4, c = table[ci];
+          pd[o]=c[0]; pd[o+1]=c[1]; pd[o+2]=c[2]; pd[o+3]=255;
+        }
+      }
+      fctx.putImageData(patch,x,y);
+
+      // Save a copy of the finished frame
+      const snap = document.createElement('canvas'); snap.width = w; snap.height = h;
+      snap.getContext('2d').drawImage(full,0,0);
+      frames.push({canvas:snap, delay:ctrl.delay});
+
+      // Disposal: what to do before the next frame
+      if (ctrl.disposal === 2) fctx.clearRect(x,y,iw,ih);
+      else if (ctrl.disposal === 3 && saved) fctx.putImageData(saved,0,0);
+      ctrl = {disposal:0, delay:100, trans:-1};
+    } else break;                              // 0x3B = end of file
+  }
+  return frames;
+}
+// Interlaced GIFs store rows out of order (every 8th, then every 4th, ...)
+function interlaceRows(h){
+  const m = [];
+  [[0,8],[4,8],[2,4],[1,2]].forEach(([start,step])=>{ for (let r=start; r<h; r+=step) m.push(r); });
+  return m;
+}
+// LZW: the compression GIFs use. Turns codes back into color-table indexes.
+function lzwDecode(minSize, data, count){
+  const out = new Uint8Array(count);
+  const clear = 1 << minSize, eoi = clear + 1;
+  const prefix = new Int16Array(4096), suffix = new Uint8Array(4096), stack = new Uint8Array(4097);
+  for (let i=0;i<clear;i++){ prefix[i] = -1; suffix[i] = i; }
+  let size = minSize+1, mask = (1<<size)-1, next = eoi+1;
+  let old = -1, first = 0, bits = 0, datum = 0, dp = 0, op = 0;
+  while (op < count){
+    while (bits < size){ if (dp >= data.length) return out; datum |= data[dp++] << bits; bits += 8; }
+    let code = datum & mask; datum >>>= size; bits -= size;
+    if (code === clear){ size = minSize+1; mask = (1<<size)-1; next = eoi+1; old = -1; continue; }
+    if (code === eoi) break;
+    if (old === -1){ out[op++] = suffix[code]; old = code; first = code; continue; }
+    const thisCode = code; let sp = 0;
+    if (code >= next){ stack[sp++] = first; code = old; }      // special "not in table yet" case
+    while (code >= clear){ stack[sp++] = suffix[code]; code = prefix[code]; }
+    first = suffix[code]; stack[sp++] = first;
+    if (next < 4096){
+      prefix[next] = old; suffix[next] = first; next++;
+      if ((next & mask) === 0 && next < 4096){ size++; mask = (1<<size)-1; }
+    }
+    while (sp > 0 && op < count) out[op++] = stack[--sp];
+    old = thisCode;
+  }
+  return out;
 }
 document.getElementById('fileIn').onchange = e => loadImageFile(e.target.files[0]);
 // Drag and drop support
@@ -526,8 +712,44 @@ hexIn.oninput = checkHex; checkHex();
 /* ---------- 4. PICTURE ANALYSIS ---------- */
 // Splits the picture into a 64 x 16 grid. Inside each square we sample pixels,
 // find each pixel's closest color, and the most popular color wins the square.
+// For an animated GIF, 4 frames spread across the animation are read,
+// and bar 1 uses frame A, bar 2 uses frame B, and so on.
 function analyzePicture(){
-  const data = dctx.getImageData(0,0,W,H).data;
+  if (!gif){
+    const part = analyzeData(dctx.getImageData(0,0,W,H).data);
+    return finishAnalysis([part], part.grid);
+  }
+  const n = gif.frames.length;
+  const picks = [0,1,2,3].map(bar => Math.floor(bar*n/4));
+  const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
+  const tctx = tmp.getContext('2d', {willReadFrequently:true});
+  const parts = picks.map(fi => { composeGifFrame(tctx, fi); return analyzeData(tctx.getImageData(0,0,W,H).data); });
+  // Song grid: each bar's 16 columns come from that bar's frame
+  const grid = parts[0].grid.map((row,r) => row.map((cell,c) => parts[Math.floor(c/16)].grid[r][c]));
+  gif.songFrames = picks;
+  gif.frameGrids = parts.map(p => p.grid);
+  return finishAnalysis(parts, grid);
+}
+
+// Adds up the results from one or more frames into the final analysis
+function finishAnalysis(parts, grid){
+  const sum = key => parts.reduce((s,p)=>s+p[key], 0);
+  const totals = COLORS.map((_,i)=>parts.reduce((s,p)=>s+p.totals[i], 0));
+  const shades = COLORS.map((_,i)=>{
+    const t = [0,0,0,0];
+    parts.forEach(p=>p.shadeSums[i].forEach((v,k)=>t[k]+=v));
+    return t[3] ? rgbToHex(t[0]/t[3], t[1]/t[3], t[2]/t[3]) : null;
+  });
+  const colorful = sum('colorful');
+  return {
+    grid, totals, shades, colorful, samples: sum('samples'),
+    avgLight: colorful ? sum('lightSum')/colorful : 0,
+    avgSat: colorful ? sum('satSum')/colorful : 0,
+  };
+}
+
+// Reads one 512x512 picture's pixel data into a 64 x 16 grid of color buckets
+function analyzeData(data){
   const cw = W/COLS, ch = H/ROWS, STEP = 2;
   const totals = new Array(COLORS.length).fill(0);
   const shadeSums = COLORS.map(()=>[0,0,0,0]);  // r,g,b,count for "average shade"
@@ -557,12 +779,7 @@ function analyzePicture(){
     }
     grid.push(row);
   }
-  return {
-    grid, totals, samples, colorful,
-    avgLight: colorful ? lightSum/colorful : 0,
-    avgSat: colorful ? satSum/colorful : 0,
-    shades: shadeSums.map(s => s[3] ? rgbToHex(s[0]/s[3], s[1]/s[3], s[2]/s[3]) : null),
-  };
+  return {grid, totals, shadeSums, samples, colorful, lightSum, satSum};
 }
 
 /* ---------- 5. SONG BUILDER ---------- */
@@ -969,6 +1186,7 @@ function loop(){
   particles = particles.filter(p=>p.life>0);
   // Fade the overlay glow, then redraw it
   for (let i=0;i<COLS;i++) heat[i] *= 0.9;
+  tickGif(performance.now());   // animate the GIF (or sync it to the song)
   drawOverlay();
   requestAnimationFrame(loop);
 }
