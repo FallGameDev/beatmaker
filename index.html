@@ -263,6 +263,7 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
       </div>
       <div>
         <h3>🧩 Your Picture as Color Buckets</h3>
+        <div class="chip" id="mapFrame" style="display:none;margin-bottom:10px"></div>
         <div class="map-wrap">
           <canvas id="map" width="512" height="128"></canvas>
           <div class="map-head" id="mapHead"></div>
@@ -1158,6 +1159,7 @@ function loop(){
           heat[cc] = 1;   // light up this column on the overlay
         }
         playInfo.col = col; playInfo.mute = pass.mute;
+        if (gif && gif.frameGrids && Math.floor(col/16) !== mapBar) drawMap(Math.floor(col/16));   // GIF: swap the map each bar
         const bar = Math.floor(col/16);
         document.getElementById('nowPlaying').textContent =
           `Now playing: ${pass.label}  |  Bar ${bar+1} of 4  |  Chord ${song.chords[bar].name}`;
@@ -1231,6 +1233,22 @@ function bufferToWav(buf){
 }
 
 /* ---------- 8. RESULTS UI ---------- */
+// The color bucket map. For GIFs it swaps to the frame each bar uses:
+// bar 1 shows the 1/4 frame, bar 2 the 2/4 frame, and so on.
+let mapGrid = null, mapBar = -1;
+function drawMap(bar){
+  const isGif = gif && gif.frameGrids;
+  mapGrid = isGif ? gif.frameGrids[bar] : analysis.grid;
+  mapBar = bar;
+  const map = document.getElementById('map'), mctx = map.getContext('2d');
+  const cw = map.width/COLS, ch = map.height/ROWS;
+  mapGrid.forEach((row,r)=>row.forEach((cell,c)=>{
+    mctx.fillStyle = COLORS[cell.ci].hex; mctx.fillRect(c*cw, r*ch, cw, ch);
+  }));
+  const label = document.getElementById('mapFrame');
+  label.style.display = isGif ? 'block' : 'none';
+  if (isGif) label.textContent = `🎞️ Bar ${bar+1}: GIF frame ${gif.songFrames[bar]+1} of ${gif.frames.length} (${bar+1}/4 of the way)`;
+}
 function showResults(){
   const res = document.getElementById('results');
   res.style.display = 'block';
@@ -1254,17 +1272,14 @@ function showResults(){
       <div class="bar-label"><span>${c.emoji} ${c.name} = ${c.inst}</span><span>${pct.toFixed(1)}%</span></div></div></div>`;
   }).join('');
 
-  // Pixel map of color buckets
-  const map = document.getElementById('map'), mctx = map.getContext('2d');
-  const cw = map.width/COLS, ch = map.height/ROWS;
-  analysis.grid.forEach((row,r)=>row.forEach((cell,c)=>{
-    mctx.fillStyle = COLORS[cell.ci].hex; mctx.fillRect(c*cw, r*ch, cw, ch);
-  }));
+  // Pixel map of color buckets (for GIFs it starts on the bar 1 frame)
+  drawMap(0);
+  const map = document.getElementById('map');
   map.onmousemove = e=>{
     const rect = map.getBoundingClientRect();
     const c = Math.min(COLS-1, Math.floor((e.clientX-rect.left)/rect.width*COLS));
     const r = Math.min(ROWS-1, Math.floor((e.clientY-rect.top)/rect.height*ROWS));
-    const cell = analysis.grid[r][c];
+    const cell = mapGrid[r][c];
     document.getElementById('mapReadout').innerHTML = matchHTML(cell.hex, COLORS[cell.ci]) + `<span style="color:var(--muted)">(beat ${c%16+1}, bar ${Math.floor(c/16)+1})</span>`;
   };
 
