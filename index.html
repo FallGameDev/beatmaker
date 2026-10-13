@@ -158,6 +158,13 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
 .playhead{position:absolute;top:0;bottom:0;width:18px;background:#ffffff33;border-left:3px solid var(--yellow);pointer-events:none;display:none;z-index:1}
 .note{color:var(--muted);font-size:.95rem;margin-top:8px}
 .section-gap{margin-top:22px}
+
+/* Song settings: genre buttons + size slider */
+#settings{margin-top:24px}
+.btn.genre{background:var(--card2);color:var(--text)}
+.btn.genre.active{background:var(--yellow);color:var(--ink);transform:translate(3px,3px);box-shadow:2px 2px 0 var(--ink)}
+#sizeSlider{width:240px}
+#sizeLabel span{color:var(--yellow);font-weight:700}
 </style>
 </head>
 <body>
@@ -230,9 +237,24 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
     <ol>
       <li><b>Pixels:</b> Every picture is made of tiny dots called pixels. Each one has a <b>hex code</b> like <code>#FF0000</code>. The 3 pairs are how much Red, Green, and Blue light it has (00 = none, FF = the most).</li>
       <li><b>Closest color:</b> We measure the "distance" between your pixel and each of our 12 color buckets, like measuring how far apart two points are on a map. The shortest distance wins.</li>
-      <li><b>Sheet music:</b> The picture is read <b>left to right</b> in 64 slices. That makes 4 bars of music (16 beats each). Colors <b>higher up</b> play <b>higher notes</b>. Upload a <b>GIF</b> and each bar uses a different frame, like a flip book turned into music!</li>
+      <li><b>Sheet music:</b> The picture is read <b>left to right</b> in thin slices, 16 per bar of music. The <b>Song Size</b> slider picks 2, 4, 8, or 16 bars, so bigger songs use more, thinner slices. Colors <b>higher up</b> play <b>higher notes</b>. Upload a <b>GIF</b> and each bar uses a different frame, like a flip book turned into music!</li>
       <li><b>Sounding good:</b> All notes stay in one <b>key</b> (a family of notes that fit together), drums snap to a steady beat, and the chords change every bar. Bright pictures get a happy <b>major</b> key, dark pictures get a moody <b>minor</b> key, and colorful pictures play faster!</li>
+      <li><b>Genres:</b> Each genre has its own rules. Pop is bouncy, Rock has crunchy guitars, Hip-Hop swings with a deep 808 bass, EDM thumps on every beat, and Jazz uses fancy 4-note chords and a walking bass. <b>Hot Garbage</b> turns all the rules off, so you hear exactly what your picture says, good or not!</li>
     </ol>
+  </section>
+
+  <!-- ===== SONG SETTINGS ===== -->
+  <section class="card" id="settings">
+    <h2><span class="badge">🎛️</span>Song Settings</h2>
+    <h3>Genre</h3>
+    <div class="row" id="genreBtns"></div>
+    <div class="note" id="genreDesc"></div>
+    <h3 class="section-gap">Song Size</h3>
+    <div class="row">
+      <input type="range" id="sizeSlider" min="0" max="3" step="1" value="1">
+      <div class="chip" id="sizeLabel"></div>
+    </div>
+    <div class="note">Bigger songs read your picture in more, thinner slices. That catches more detail and makes the song longer.</div>
   </section>
 
   <div class="center">
@@ -315,8 +337,21 @@ const IDX = {}; COLORS.forEach((c,i)=>IDX[c.type]=i);  // type -> color index
 const byType = t => COLORS[IDX[t]];
 
 // Grid size used to turn the picture into music
-const COLS = 64;  // 4 bars x 16 steps
-const ROWS = 16;  // vertical slices = pitch
+// These change with the Song Size slider (see applySize)
+let BARS = 4;     // how many bars of music
+let COLS = 64;    // BARS x 16 steps = slices across the picture
+let ROWS = 16;    // slices down the picture = pitch
+const SIZE_BARS = [2,4,8,16];                                  // slider positions
+const rowsFor = bars => bars<=4 ? 16 : bars<=8 ? 24 : 32;      // bigger songs read finer rows too
+// Switch song size. Anything built for the old size gets thrown away.
+function applySize(bars){
+  if (bars === BARS) return;
+  stop();
+  BARS = bars; COLS = bars*16; ROWS = rowsFor(bars);
+  heat = new Array(COLS).fill(0);
+  overlayGrid = null; analysis = null; song = null;
+  if (gif){ gif.songFrames = null; gif.frameGrids = null; }
+}
 const W = 512, H = 512;
 
 // Order of rows in the beat grid
@@ -403,9 +438,9 @@ document.getElementById('clearBtn').onclick = () => { clearCanvas(); setUploaded
 /* ---------- Overlay (only for uploaded images) ---------- */
 // hasUpload: true while the canvas holds an uploaded picture
 // overlayGrid: the color buckets drawn over the image
-// heat: how "lit up" each of the 64 columns is (1 = just played, fades to 0)
+// heat: how "lit up" each column is (1 = just played, fades to 0)
 let hasUpload = false, overlayGrid = null;
-const heat = new Array(COLS).fill(0);
+let heat = new Array(COLS).fill(0);
 const overlay = document.getElementById('overlay'), octx = overlay.getContext('2d');
 const overlayChk = document.getElementById('overlayChk');
 
@@ -426,14 +461,15 @@ function drawOverlay(){
   overlay.style.display = on ? 'block' : 'none';
   if (!on) return;
   octx.clearRect(0,0,W,H);
-  const cw = W/COLS, ch = H/ROWS;
   const mute = playInfo && playInfo.mute;
   // For GIFs that are playing, use the buckets from the frame on screen
   const grid = (gif && gif.frameGrids && playInfo && playInfo.col != null)
     ? gif.frameGrids[Math.floor(playInfo.col/16)] : overlayGrid;
+  const rows = grid.length, cols = grid[0].length;   // size of the grid being drawn
+  const cw = W/cols, ch = H/rows;
 
-  for (let c=0; c<COLS; c++){
-    for (let r=0; r<ROWS; r++){
+  for (let c=0; c<cols; c++){
+    for (let r=0; r<rows; r++){
       const color = COLORS[grid[r][c].ci];
       if (color.type === 'rest') continue;   // black stays clear
       // Is this color's instrument actually playing in this column right now?
@@ -443,7 +479,7 @@ function drawOverlay(){
       octx.globalAlpha = playing ? 0.25 + 0.65*heat[c] : 0.18;
       octx.fillStyle = color.hex;
       octx.fillRect(c*cw, r*ch, cw, ch);
-      if (playing && heat[c] > 0.6){
+      if (playing && heat[c] > 0.6 && cw >= 6){   // outlines only when squares are big enough
         octx.globalAlpha = heat[c];
         octx.strokeStyle = '#0b0920'; octx.lineWidth = 2;
         octx.strokeRect(c*cw+1, r*ch+1, cw-2, ch-2);
@@ -713,7 +749,8 @@ hexIn.oninput = checkHex; checkHex();
 /* ---------- 4. PICTURE ANALYSIS ---------- */
 // Splits the picture into a 64 x 16 grid. Inside each square we sample pixels,
 // find each pixel's closest color, and the most popular color wins the square.
-// For an animated GIF, the frames at 1/4, 2/4, 3/4 and the end are read,
+// For an animated GIF, one frame per bar is read, evenly spread to the end
+// (with 4 bars: the frames at 1/4, 2/4, 3/4 and the end),
 // and bar 1 uses frame A, bar 2 uses frame B, and so on.
 function analyzePicture(){
   if (!gif){
@@ -721,8 +758,8 @@ function analyzePicture(){
     return finishAnalysis([part], part.grid);
   }
   const n = gif.frames.length;
-  // Bar 1 = the frame 1/4 of the way through, bar 2 = 2/4, bar 3 = 3/4, bar 4 = the last frame
-  const picks = [0,1,2,3].map(bar => Math.max(0, Math.ceil((bar+1)*n/4) - 1));
+  // Bar 1 = the frame 1/BARS of the way through, bar 2 = 2/BARS, ... last bar = the last frame
+  const picks = Array.from({length:BARS}, (_,bar) => Math.max(0, Math.ceil((bar+1)*n/BARS) - 1));
   const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
   const tctx = tmp.getContext('2d', {willReadFrequently:true});
   const parts = picks.map(fi => { composeGifFrame(tctx, fi); return analyzeData(tctx.getImageData(0,0,W,H).data); });
@@ -785,7 +822,7 @@ function analyzeData(data){
 }
 
 /* ---------- 5. SONG BUILDER ---------- */
-const NOTE_NAMES = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+const NOTE_NAMES = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
 const MAJOR = [0,2,4,5,7,9,11];
 const MINOR = [0,2,3,5,7,8,10];
 // Which key the song is in depends on the most common color
@@ -805,104 +842,229 @@ function snapToChord(midi, pcs){
   return midi;
 }
 
+/* ===== GENRES =====
+   Each genre is a recipe of rules. The step numbers (0 to 15) are the 16 slots
+   in one bar: 0 = beat 1, 4 = beat 2, 8 = beat 3, 12 = beat 4.
+   - tempo: [slowest, fastest] BPM (colorful pictures go faster)
+   - swing: delays some notes for a bouncy feel ({on:2} = 16ths, {on:4} = 8ths)
+   - moodCut: how bright the picture must be to get a happy major key
+   - prog: chord progressions as scale steps (0 = home chord)
+   - kick/snare/clap/hat/...: which slots each drum is allowed to hit
+   - kickForce: slots the kick ALWAYS hits if the bar has any red
+   - bass.style: how the bass plays (see buildSong)
+   - sound: which version of each instrument to use (see the sound engine) */
+const GENRES = {
+  pop: {
+    name:'Pop', emoji:'🎤', desc:'Catchy and bouncy, like the radio.',
+    tempo:[100,126], swing:null, moodCut:0.5,
+    prog:{maj:[0,4,5,3], min:[0,5,2,6]}, sevenths:false, melody:'pent',
+    kick:[0,3,6,8,10,11,14], kickForce:[0], snare:[4,12], ghost:[7,14,15], ghostMin:2, ghostVel:0.35, clap:[4,12],
+    hat:[0,2,4,6,8,10,12,14], hatDense:true, shaker:[1,3,5,7,9,11,13,15], tom:[6,13,14,15], wood:[3,6,11,14],
+    bass:{style:'root5', steps:[3,6,8,10,14]}, piano:'melody',
+    sound:{bass:'synth', piano:'keys', pad:'warm', hat:'closed'},
+    helper:{kick:[0,8], clap:[4,12], hat:[0,2,4,6,8,10,12,14]},
+  },
+  rock: {
+    name:'Rock', emoji:'🎸', desc:'Crunchy guitars, driving bass, and big drums.',
+    tempo:[112,150], swing:null, moodCut:0.55,
+    prog:{maj:[0,3,4,0], min:[0,6,5,6]}, sevenths:false, melody:'pent',
+    kick:[0,2,8,10,11], kickForce:[0,8], snare:[4,12], ghost:[15], ghostMin:2, ghostVel:0.4, clap:[4,12],
+    hat:[0,2,4,6,8,10,12,14], hatDense:false, shaker:[4,12], tom:[12,13,14,15], wood:[3,11],
+    bass:{style:'drive8', steps:[]}, piano:'melody',
+    sound:{bass:'drive', piano:'guitar', pad:'organ', hat:'closed'},
+    helper:{kick:[0,8,10], snare:[4,12], hat:[0,2,4,6,8,10,12,14]},
+  },
+  hiphop: {
+    name:'Hip-Hop', emoji:'🧢', desc:'Laid-back boom bap groove with a deep 808 bass.',
+    tempo:[82,96], swing:{on:2, amt:0.22}, moodCut:0.65,
+    prog:{maj:[0,5,3,4], min:[0,5,6,4]}, sevenths:true, melody:'pent',
+    kick:[0,7,10], kickForce:[0], snare:[4,12], ghost:[15], ghostMin:2, ghostVel:0.35, clap:[4,12],
+    hat:[0,2,4,6,8,10,12,14], hatDense:true, shaker:[3,11], tom:[13,14], wood:[6,14],
+    bass:{style:'808', steps:[7,10]}, piano:'melody',
+    sound:{bass:'808', piano:'rhodes', pad:'warm', hat:'closed'},
+    helper:{kick:[0,7,10], snare:[4,12], hat:[0,2,4,6,8,10,12,14]},
+  },
+  edm: {
+    name:'EDM', emoji:'⚡', desc:'Four-on-the-floor dance beat with bright synths.',
+    tempo:[124,130], swing:null, moodCut:0.45,
+    prog:{maj:[5,3,0,4], min:[0,5,2,6]}, sevenths:false, melody:'pent',
+    kick:[0,4,8,12], kickForce:[0,4,8,12], snare:[4,12], ghost:[], ghostMin:99, ghostVel:0, clap:[4,12],
+    hat:[2,6,10,14], hatDense:true, shaker:[1,3,5,7,9,11,13,15], tom:[14,15], wood:[3,11],
+    bass:{style:'offbeat', steps:[2,6,10,14]}, piano:'melody',
+    sound:{bass:'synth', piano:'pluck', pad:'supersaw', hat:'closed'},
+    helper:{kick:[0,4,8,12], clap:[4,12], hat:[2,6,10,14]},
+  },
+  jazz: {
+    name:'Jazz', emoji:'🎷', desc:'Swingy rhythm, fancy chords, and a walking bass.',
+    tempo:[100,160], swing:{on:4, amt:0.66}, moodCut:0.5,
+    prog:{maj:[1,4,0,5], min:[1,4,0,0]}, sevenths:true, melody:'diatonic',
+    kick:[0,10], kickForce:[], snare:[], ghost:[3,7,11,15], ghostMin:1, ghostVel:0.3, clap:[4,12], clapVel:0.45,
+    hat:[0,4,6,8,12,14], hatDense:false, shaker:[2,6,10,14], tom:[14], wood:[7,15],
+    bass:{style:'walk', steps:[0,4,8,12]}, piano:'comp', comp:[2,6,10,14],
+    sound:{bass:'upright', piano:'rhodes', pad:'warm', hat:'ride'},
+    helper:{hat:[0,4,6,8,12,14], kick:[0]},
+  },
+  garbage: {
+    name:'Hot Garbage', emoji:'🗑️', desc:'No rules. Every color plays exactly where it is, in any note. It just does what it does.',
+    raw:true, sound:{bass:'synth', piano:'keys', pad:'warm', hat:'closed'},
+  },
+};
+let genreKey = 'pop';
+
 function buildSong(an, helperOn){
+  const g = GENRES[genreKey];
   const {grid, totals, avgLight, avgSat} = an;
-  const happy = avgLight >= 0.5;
+
+  // Count each color in every column, and where it sits (top, middle, bottom)
+  const N = COLORS.length, colInfo = [];
+  for (let c=0;c<COLS;c++){
+    const counts=new Array(N).fill(0), rowSum=new Array(N).fill(0), top=new Array(N).fill(-1), bottom=new Array(N).fill(-1);
+    for (let r=0;r<ROWS;r++){
+      const ci = grid[r][c].ci;
+      counts[ci]++; rowSum[ci]+=r; if (top[ci]<0) top[ci]=r; bottom[ci]=r;
+    }
+    colInfo.push({counts, top, bottom, center: rowSum.map((s,i)=>counts[i] ? s/counts[i] : -1)});
+  }
+  const cnt = (t,col) => colInfo[col].counts[IDX[t]];
+  const center = (t,col) => colInfo[col].center[IDX[t]];
+  const height = row => (ROWS-1-row)/(ROWS-1);          // 0 = bottom, 1 = top
+  const barAmount = (t,bar) => { let s=0; for (let k=0;k<16;k++) s+=cnt(t,bar*16+k); return s; };
+  const near = (t,col,rad) => { const bar=Math.floor(col/16); for (let k=-rad;k<=rad;k++){ const cc=col+k; if (Math.floor(cc/16)===bar && cc>=0 && cc<COLS && cnt(t,cc)>0) return true; } return false; };
+  const loud = n => Math.min(1, 0.5 + n/ROWS*1.5);
+  const tracks = {}; TRACK_ORDER.forEach(t=>tracks[t]=new Array(COLS).fill(null));
+
+  /* ----- HOT GARBAGE: every color plays wherever it is, no rules at all ----- */
+  if (g.raw){
+    const anyNote = row => 36 + Math.round(height(row)*48);   // any of 48 notes, in tune or not
+    for (let col=0; col<COLS; col++){
+      const info = colInfo[col];
+      TRACK_ORDER.forEach(t=>{
+        const i = IDX[t], n = info.counts[i];
+        if (!n) return;
+        const ev = {vel: Math.min(1, 0.25 + n/ROWS*2)};
+        if (t==='tom')  ev.freq = 60 + height(info.center[i])*300;
+        if (t==='wood') ev.freq = 300 + height(info.center[i])*1500;
+        if (t==='bass'){ ev.midi = anyNote(info.center[i]) - 12; ev.dur = 1; }
+        if (t==='piano') ev.midi = anyNote(info.top[i]);
+        if (t==='bells') ev.midi = anyNote(info.top[i]) + 12;
+        if (t==='pad'){ ev.midis = [anyNote(info.top[i]), anyNote(info.center[i]), anyNote(info.bottom[i])]; ev.dur = 1; }
+        tracks[t][col] = ev;
+      });
+    }
+    const barChords = Array.from({length:BARS}, ()=>({name:'???', triad:[48,49,54], deg:0}));
+    return {tracks, barChords, raw:true, genre:g, sound:g.sound, swing:null,
+      tempo: Math.round(60 + avgSat*170 + avgLight*30), happy: avgLight>=0.5, keyName:'No key 🤷'};
+  }
+
+  /* ----- Every other genre: music rules keep it sounding good ----- */
+  const happy = avgLight >= g.moodCut;
   const scale = happy ? MAJOR : MINOR;
 
   // Key = based on the most common real color (not black)
   let dom = 0;
   totals.forEach((v,i)=>{ if (COLORS[i].type!=='rest' && (COLORS[dom].type==='rest' || v>totals[dom])) dom=i; });
   const rootPc = KEY_FOR_COLOR[dom];
-  const tempo = Math.round(84 + avgSat*56);   // 84 to 140 BPM
+  const tempo = Math.round(g.tempo[0] + avgSat*(g.tempo[1]-g.tempo[0]));
 
-  // Chord progressions that always sound good
-  // Major: I V vi IV     Minor: i VI III VII
-  const prog = happy ? [0,4,5,3] : [0,5,2,6];
   const padBase = 48 + rootPc;
   const bassBase = 36 + rootPc - (rootPc>7 ? 12 : 0);
   const melBase = 60 + rootPc - (rootPc>5 ? 12 : 0);
 
-  const chords = prog.map(deg=>{
-    const triad = [deg,deg+2,deg+4].map(d=>degMidi(d,padBase,scale));
-    const third = triad[1]-triad[0], fifth = triad[2]-triad[0];
-    const q = third===4 ? '' : (fifth===6 ? 'dim' : 'm');
-    return {deg, triad, pcs:new Set(triad.map(m=>m%12)), name:NOTE_NAMES[triad[0]%12]+q};
-  });
+  // Build a chord on a scale step (3 notes, or 4 for jazzy "seventh" chords)
+  const makeChord = deg => {
+    const degs = g.sevenths ? [deg,deg+2,deg+4,deg+6] : [deg,deg+2,deg+4];
+    const notes = degs.map(d=>degMidi(d,padBase,scale));
+    const third = notes[1]-notes[0], fifth = notes[2]-notes[0];
+    let q = third===4 ? '' : (fifth===6 ? 'dim' : 'm');
+    if (g.sevenths){ const sev = notes[3]-notes[0]; q = third===4 ? (sev===11 ? 'maj7' : '7') : (fifth===6 ? 'm7b5' : 'm7'); }
+    return {deg, triad:notes, pcs:new Set(notes.map(m=>m%12)), name:NOTE_NAMES[notes[0]%12]+q};
+  };
+  const progChords = (happy ? g.prog.maj : g.prog.min).map(makeChord);
+  // The 4-chord pattern repeats for longer songs
+  const barChords = Array.from({length:BARS}, (_,b)=>progChords[b % progChords.length]);
 
-  // Pentatonic melody notes (5-note scale = almost impossible to sound bad)
-  const pentDegs = happy ? [0,1,2,4,5] : [0,2,3,4,6];
+  // Melody notes: pentatonic (5-note scale, very hard to sound bad) or the full scale for jazz
+  const melDegs = g.melody==='diatonic' ? [0,1,2,3,4,5,6] : (happy ? [0,1,2,4,5] : [0,2,3,4,6]);
   const melody = [];
-  for (let o=0;o<3;o++) pentDegs.forEach(d=>melody.push(degMidi(d+7*o, melBase, scale)));
+  for (let o=0;o<3;o++) melDegs.forEach(d=>melody.push(degMidi(d+7*o, melBase, scale)));
   melody.push(degMidi(21, melBase, scale));
-  const rowToMidi = row => melody[Math.round((ROWS-1-row)/(ROWS-1)*(melody.length-1))];
+  const rowToMidi = row => melody[Math.round(height(row)*(melody.length-1))];
 
-  // Count each color in every column, plus its average height (centroid)
-  const colInfo = [];
-  for (let c=0;c<COLS;c++){
-    const counts = new Array(COLORS.length).fill(0), rowSum = new Array(COLORS.length).fill(0);
-    for (let r=0;r<ROWS;r++){ const ci=grid[r][c].ci; counts[ci]++; rowSum[ci]+=r; }
-    colInfo.push({counts, center: rowSum.map((s,i)=>counts[i] ? s/counts[i] : -1)});
-  }
-  const cnt = (t,col) => colInfo[col].counts[IDX[t]];
-  const center = (t,col) => colInfo[col].center[IDX[t]];
-  const barAmount = (t,bar) => { let s=0; for (let k=0;k<16;k++) s+=cnt(t,bar*16+k); return s; };
-  const near = (t,col,rad) => { const bar=Math.floor(col/16); for (let k=-rad;k<=rad;k++){ const cc=col+k; if (Math.floor(cc/16)===bar && cc>=0 && cc<COLS && cnt(t,cc)>0) return true; } return false; };
-  const loud = n => Math.min(1, 0.5 + n/ROWS*1.5);
-
-  // Allowed steps for each drum so the beat stays groovy
-  const KICK_STEPS = new Set([0,3,6,8,10,11,14]);
-  const TOM_STEPS = new Set([6,13,14,15]);
-  const WOOD_STEPS = new Set([3,6,11,14]);
-  const BASS_STEPS = new Set([3,6,8,10,14]);
-
-  const tracks = {}; TRACK_ORDER.forEach(t=>tracks[t]=new Array(COLS).fill(null));
+  // Turn the step lists into quick lookups
+  const S = k => new Set(g[k] || []);
+  const KICK=S('kick'), KF=S('kickForce'), SN=S('snare'), GH=S('ghost'), CL=S('clap'), HT=S('hat'),
+        SH=S('shaker'), TM=S('tom'), WD=S('wood'), BS=new Set(g.bass.steps), COMP=S('comp');
   let lastPiano = {midi:-1, col:-9};
 
-  for (let bar=0; bar<4; bar++){
-    const chord = chords[bar];
+  for (let bar=0; bar<BARS; bar++){
+    const chord = barChords[bar], nextChord = barChords[(bar+1)%BARS];
+    const bassHere = barAmount('bass',bar) > 0;
     for (let step=0; step<16; step++){
       const col = bar*16+step;
 
       // KICK (red)
-      if (cnt('kick',col)>0 && KICK_STEPS.has(step)) tracks.kick[col] = {vel:loud(cnt('kick',col))};
-      if (step===0 && barAmount('kick',bar)>0 && !tracks.kick[col]) tracks.kick[col] = {vel:0.8};
+      if (cnt('kick',col)>0 && KICK.has(step)) tracks.kick[col] = {vel:loud(cnt('kick',col))};
+      if (KF.has(step) && barAmount('kick',bar)>0 && !tracks.kick[col]) tracks.kick[col] = {vel:0.8};
 
-      // SNARE (orange): main hits on beats 2 and 4, soft "ghost" notes elsewhere
-      if ((step===4||step===12) && near('snare',col,2)) tracks.snare[col] = {vel:0.85};
-      else if ([7,14,15].includes(step) && cnt('snare',col)>=2) tracks.snare[col] = {vel:0.35};
+      // SNARE (orange): main backbeat hits, plus soft "ghost" notes
+      if (SN.has(step) && near('snare',col,2)) tracks.snare[col] = {vel:0.85};
+      else if (GH.has(step) && cnt('snare',col)>=g.ghostMin) tracks.snare[col] = {vel:g.ghostVel};
 
       // CLAP (skin tone)
-      if ((step===4||step===12) && near('clap',col,2)) tracks.clap[col] = {vel:0.8};
-      else if (step===10 && cnt('clap',col)>0) tracks.clap[col] = {vel:0.5};
+      if (CL.has(step) && near('clap',col,2)) tracks.clap[col] = {vel:g.clapVel || 0.8};
 
-      // HI-HAT (yellow): 8th notes, 16th notes if there is lots of yellow
-      if (cnt('hat',col)>0 && (step%2===0 || cnt('hat',col)>=3))
+      // HI-HAT (yellow): allowed slots, plus extra 16th notes if lots of yellow
+      if (cnt('hat',col)>0 && (HT.has(step) || (g.hatDense && cnt('hat',col)>=3)))
         tracks.hat[col] = {vel:(step%4===2 ? 0.9 : step%2===0 ? 0.65 : 0.4) * (0.6+0.4*Math.min(1,cnt('hat',col)/4))};
 
-      // SHAKER (white): off-beats
-      if (cnt('shaker',col)>0 && (step%2===1 || cnt('shaker',col)>=5)) tracks.shaker[col] = {vel:0.55};
+      // SHAKER (white)
+      if (cnt('shaker',col)>0 && SH.has(step)) tracks.shaker[col] = {vel:0.55};
 
-      // TOM (brown): fills near the end of each bar, pitch from height
-      if (cnt('tom',col)>0 && TOM_STEPS.has(step))
-        tracks.tom[col] = {vel:loud(cnt('tom',col)), freq:90 + (ROWS-1-center('tom',col))/(ROWS-1)*140};
+      // TOM (brown): pitch from height
+      if (cnt('tom',col)>0 && TM.has(step))
+        tracks.tom[col] = {vel:loud(cnt('tom',col)), freq:90 + height(center('tom',col))*140};
 
-      // WOODBLOCK (gray): syncopated clicks
-      if (cnt('wood',col)>0 && WOOD_STEPS.has(step))
-        tracks.wood[col] = {vel:0.6, freq:700 + (ROWS-1-center('wood',col))/(ROWS-1)*600};
+      // WOODBLOCK (gray)
+      if (cnt('wood',col)>0 && WD.has(step))
+        tracks.wood[col] = {vel:0.6, freq:700 + height(center('wood',col))*600};
 
-      // BASS (green): chord root on beat 1, then root or fifth
+      // BASS (green): each genre has its own bass style
       const root = degMidi(chord.deg, bassBase, scale), fifth = degMidi(chord.deg+4, bassBase, scale);
-      if (step===0 && barAmount('bass',bar)>0) tracks.bass[col] = {vel:0.9, midi:root, dur:3};
-      else if (cnt('bass',col)>0 && BASS_STEPS.has(step))
-        tracks.bass[col] = {vel:loud(cnt('bass',col)), midi: center('bass',col) < ROWS/2 ? fifth : root, dur:2};
+      const bc = cnt('bass',col), high = bc>0 && center('bass',col) < ROWS/2;
+      switch (g.bass.style){
+        case 'root5':   // pop: root on beat 1, then root or fifth where green is
+          if (step===0 && bassHere) tracks.bass[col] = {vel:0.9, midi:root, dur:3};
+          else if (bc>0 && BS.has(step)) tracks.bass[col] = {vel:loud(bc), midi: high ? fifth : root, dur:2};
+          break;
+        case 'drive8':  // rock: steady 8th notes all bar, octave jumps where green is high
+          if (bassHere && step%2===0) tracks.bass[col] = {vel: bc>0 ? 0.95 : 0.7, midi: (high && step%8===6) ? root+12 : root, dur:2};
+          break;
+        case '808':     // hip-hop: long booming notes
+          if ((step===0 && bassHere) || (bc>0 && BS.has(step))) tracks.bass[col] = {vel:0.95, midi: (step===0 || !high) ? root : fifth, dur:6};
+          break;
+        case 'offbeat': // EDM: bass on every off-beat
+          if (bassHere && BS.has(step)) tracks.bass[col] = {vel: bc>0 ? 0.9 : 0.7, midi:root, dur:2};
+          break;
+        case 'walk': {  // jazz: walks up the chord and leans into the next one
+          if (bassHere && step%4===0){
+            const nextRoot = degMidi(nextChord.deg, bassBase, scale);
+            const walk = [root, degMidi(chord.deg+2,bassBase,scale), fifth, nextRoot + (nextRoot>root ? -1 : 1)];
+            tracks.bass[col] = {vel:0.8, midi:walk[step/4], dur:4};
+          }
+          break;
+        }
+      }
 
-      // PIANO (blue): melody from the color's height, snapped to the chord on main beats
-      if (cnt('piano',col)>0 && (step%2===0 || cnt('piano',col)>=5)){
+      // PIANO (blue)
+      if (g.piano === 'comp'){
+        // Jazz "comping": short chord stabs on the off-beats where blue is
+        if (cnt('piano',col)>0 && COMP.has(step))
+          tracks.piano[col] = {vel:loud(cnt('piano',col))*0.8, midis:chord.triad.map(m=>m+12)};
+      } else if (cnt('piano',col)>0 && (step%2===0 || cnt('piano',col)>=5)){
+        // Melody from the color's height, snapped to the chord on main beats
         let m = rowToMidi(Math.round(center('piano',col)));
         if (step%4===0) m = snapToChord(m, chord.pcs);
-        // Skip boring repeats so the melody has room to breathe
-        if (!(m===lastPiano.midi && col-lastPiano.col<=2 && step!==0)){
+        if (!(m===lastPiano.midi && col-lastPiano.col<=2 && step!==0)){   // skip boring repeats
           tracks.piano[col] = {vel:loud(cnt('piano',col)), midi:m};
           lastPiano = {midi:m, col};
         }
@@ -922,26 +1084,26 @@ function buildSong(an, helperOn){
     }
   }
 
-  // Helper parts: if the picture has no drums or no melody, add soft ones
+  // Helper parts: if the picture has no drums or no melody, add soft ones in this genre's style
   if (helperOn){
     if (!DRUM_TYPES.some(t=>tracks[t].some(Boolean))){
       for (let col=0; col<COLS; col++){
         const s = col%16;
-        if (s===0||s===8) tracks.kick[col] = {vel:0.55, helper:true};
-        if (s===4||s===12) tracks.clap[col] = {vel:0.45, helper:true};
-        if (s%2===0) tracks.hat[col] = {vel:0.35, helper:true};
+        Object.entries(g.helper).forEach(([t,steps])=>{
+          if (steps.includes(s)) tracks[t][col] = {vel: t==='hat' ? 0.35 : 0.5, helper:true};
+        });
       }
     }
     if (!MELODY_TYPES.some(t=>tracks[t].some(Boolean))){
-      for (let bar=0; bar<4; bar++){
-        tracks.pad[bar*16] = {vel:0.45, midis:chords[bar].triad, dur:16, helper:true};
-        tracks.bass[bar*16] = {vel:0.6, midi:degMidi(chords[bar].deg, bassBase, scale), dur:4, helper:true};
+      for (let bar=0; bar<BARS; bar++){
+        tracks.pad[bar*16] = {vel:0.45, midis:barChords[bar].triad, dur:16, helper:true};
+        tracks.bass[bar*16] = {vel:0.6, midi:degMidi(barChords[bar].deg, bassBase, scale), dur:4, helper:true};
       }
     }
   }
 
   return {
-    tracks, chords, tempo, happy, scale, melBase, bassBase, padBase,
+    tracks, barChords, tempo, happy, genre:g, sound:g.sound, swing:g.swing, raw:false,
     keyName: NOTE_NAMES[rootPc] + (happy ? ' major' : ' minor'),
   };
 }
@@ -949,6 +1111,8 @@ function buildSong(an, helperOn){
 /* ---------- 6. SOUND ENGINE (Web Audio) ---------- */
 // Every instrument is built from oscillators (tones) and noise (hiss),
 // shaped by filters and volume envelopes. Works for live play AND WAV export.
+// Each genre picks a "flavor" for some instruments through song.sound.
+const flavor = () => (song && song.sound) || {};
 const noiseCache = new WeakMap();
 function noiseBuf(ctx){
   if (noiseCache.has(ctx)) return noiseCache.get(ctx);
@@ -961,12 +1125,25 @@ const mtof = m => 440*Math.pow(2,(m-69)/12);  // MIDI number to frequency
 // Volume envelope: quick rise, then fade out
 function vca(ctx,out,t,attack,peak,decay){
   const g = ctx.createGain();
+  g.gain.value = 0;   // stay silent until the note starts
   g.gain.setValueAtTime(0.0001,t);
   g.gain.exponentialRampToValueAtTime(Math.max(peak,0.0002), t+attack);
   g.gain.exponentialRampToValueAtTime(0.0001, t+attack+decay);
   g.connect(out); return g;
 }
 function osc(ctx,type,freq,t,stop,dest){ const o=ctx.createOscillator(); o.type=type; o.frequency.value=freq; o.connect(dest); o.start(t); o.stop(stop); return o; }
+function lowpass(ctx,freq,q){ const f=ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=freq; if (q) f.Q.value=q; return f; }
+// Distortion: squashes the sound wave for a crunchy, gritty tone (rock guitar, 808)
+const driveCurves = {};
+function shaper(ctx, amount){
+  if (!driveCurves[amount]){
+    // Odd length so silence in = exactly silence out (no constant hum)
+    const c = new Float32Array(1025);
+    for (let i=0;i<1025;i++){ const x=i/512-1; c[i] = Math.tanh(x*amount)/Math.tanh(amount); }
+    driveCurves[amount] = c;
+  }
+  const ws = ctx.createWaveShaper(); ws.curve = driveCurves[amount]; return ws;
+}
 
 const INSTR = {
   kick(ctx,out,t,ev){
@@ -982,13 +1159,16 @@ const INSTR = {
     o.connect(vca(ctx,out,t,0.002,0.35*ev.vel,0.1)); o.start(t); o.stop(t+0.15);
   },
   hat(ctx,out,t,ev){
-    const f = ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value=7500;
-    noise(ctx,t,0.08).connect(f).connect(vca(ctx,out,t,0.001,0.22*ev.vel,0.05));
+    // "ride" (jazz) rings longer and lower than a normal closed hi-hat
+    const ride = flavor().hat === 'ride';
+    const f = ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value = ride ? 5000 : 7500;
+    noise(ctx,t,ride ? 0.45 : 0.08).connect(f).connect(vca(ctx,out,t,0.001,(ride ? 0.13 : 0.22)*ev.vel, ride ? 0.32 : 0.05));
   },
   clap(ctx,out,t,ev){
     // 3 tiny bursts close together sound like many hands clapping
     const f = ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=1300; f.Q.value=1.1;
     const g = ctx.createGain(), p = 0.6*ev.vel;
+    g.gain.value = 0;
     g.gain.setValueAtTime(0.0001,t);
     [0,0.011,0.022].forEach(o=>{ g.gain.setValueAtTime(p,t+o); g.gain.exponentialRampToValueAtTime(p*0.05+0.0001,t+o+0.009); });
     g.gain.setValueAtTime(p*0.8,t+0.033); g.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
@@ -1009,19 +1189,60 @@ const INSTR = {
     o.connect(vca(ctx,out,t,0.001,0.4*ev.vel,0.07)); o.start(t); o.stop(t+0.12);
   },
   bass(ctx,out,t,ev,sd){
-    const dur = (ev.dur||2)*sd, f = mtof(ev.midi);
+    const kind = flavor().bass || 'synth', dur = (ev.dur||2)*sd, f = mtof(ev.midi);
+    if (kind === '808'){
+      // Deep sine that drops into the note, slightly distorted
+      const o = ctx.createOscillator(); o.type='sine';
+      o.frequency.setValueAtTime(f*2,t); o.frequency.exponentialRampToValueAtTime(f,t+0.05);
+      o.connect(shaper(ctx,2)).connect(vca(ctx,out,t,0.005,0.55*ev.vel,dur+0.3));
+      o.start(t); o.stop(t+dur+0.5); return;
+    }
+    if (kind === 'upright'){
+      // Plucked upright bass: soft, round, short
+      const g = vca(ctx,out,t,0.01,0.45*ev.vel,0.5), lp = lowpass(ctx,600);
+      lp.connect(g);
+      osc(ctx,'triangle',f,t,t+0.7,lp); osc(ctx,'sine',f,t,t+0.7,g); return;
+    }
+    // 'synth' (and 'drive' = the same through distortion)
     const g = vca(ctx,out,t,0.008,0.32*ev.vel,dur+0.1);
-    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=4;
-    lp.frequency.setValueAtTime(900,t); lp.frequency.exponentialRampToValueAtTime(180,t+dur);
+    const lp = lowpass(ctx,900,4);
+    lp.frequency.setValueAtTime(kind==='drive' ? 1800 : 900,t); lp.frequency.exponentialRampToValueAtTime(180,t+dur);
     lp.connect(g);
-    osc(ctx,'sawtooth',f,t,t+dur+0.2,lp);
+    if (kind === 'drive'){ const ws = shaper(ctx,4), trim = ctx.createGain(); trim.gain.value = 0.8; ws.connect(trim).connect(lp); osc(ctx,'sawtooth',f,t,t+dur+0.2,ws); }
+    else osc(ctx,'sawtooth',f,t,t+dur+0.2,lp);
     osc(ctx,'sine',f,t,t+dur+0.2,g);   // sub tone for extra thump
   },
   piano(ctx,out,t,ev){
-    const f = mtof(ev.midi), g = vca(ctx,out,t,0.004,0.22*ev.vel,1.1);
-    osc(ctx,'triangle',f,t,t+1.2,g);
-    const a = ctx.createGain(); a.gain.value=0.35; a.connect(g);
-    osc(ctx,'sine',f*2,t,t+1.2,a);
+    // Plays one note (ev.midi) or a whole chord (ev.midis, used for jazz comping)
+    const kind = flavor().piano || 'keys';
+    const notes = ev.midis || [ev.midi], vel = ev.vel/Math.sqrt(notes.length);
+    notes.forEach(m=>{
+      const f = mtof(m);
+      if (kind === 'guitar'){
+        // Distorted "power chord": the note, its fifth, and an octave below
+        const g = vca(ctx,out,t,0.003,0.12*vel,0.7), lp = lowpass(ctx,2800), ws = shaper(ctx,6);
+        ws.connect(lp).connect(g);
+        osc(ctx,'sawtooth',f,t,t+0.8,ws); osc(ctx,'sawtooth',f*1.4983,t,t+0.8,ws); osc(ctx,'square',f/2,t,t+0.8,ws);
+      } else if (kind === 'pluck'){
+        // EDM pluck: bright at first, then the filter closes fast
+        const g = vca(ctx,out,t,0.002,0.22*vel,0.35), lp = lowpass(ctx,5000);
+        lp.frequency.setValueAtTime(5000,t); lp.frequency.exponentialRampToValueAtTime(500,t+0.25);
+        lp.connect(g);
+        osc(ctx,'square',f,t,t+0.45,lp); osc(ctx,'sawtooth',f*2,t,t+0.45,lp);
+      } else if (kind === 'rhodes'){
+        // Electric piano: smooth sine with a little bell-like "tine"
+        const g = vca(ctx,out,t,0.004,0.26*vel,1.5);
+        osc(ctx,'sine',f,t,t+1.6,g);
+        const a = ctx.createGain(); a.gain.value = 0.18; a.connect(g);
+        osc(ctx,'sine',f*4,t,t+1.6,a);
+      } else {
+        // 'keys': simple bright piano-ish tone
+        const g = vca(ctx,out,t,0.004,0.22*vel,1.1);
+        osc(ctx,'triangle',f,t,t+1.2,g);
+        const a = ctx.createGain(); a.gain.value = 0.35; a.connect(g);
+        osc(ctx,'sine',f*2,t,t+1.2,a);
+      }
+    });
   },
   bells(ctx,out,t,ev){
     // Bells use "out of tune" overtones (2.76x, 5.4x) which makes a metal sound
@@ -1032,14 +1253,22 @@ const INSTR = {
     });
   },
   pad(ctx,out,t,ev,sd){
-    const dur = (ev.dur||16)*sd, peak = 0.06*ev.vel;
+    // 'warm' = soft fade in, 'organ' = rock organ, 'supersaw' = huge EDM chord
+    const kind = flavor().pad || 'warm';
+    const supersaw = kind==='supersaw', organ = kind==='organ';
+    const dur = (ev.dur||16)*sd, peak = 0.06*ev.vel*(supersaw ? 0.6 : 1);
+    const attack = organ ? 0.02 : supersaw ? 0.08 : 0.35;
     const g = ctx.createGain();
-    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(peak,t+0.35);
-    g.gain.setValueAtTime(peak,t+Math.max(0.4,dur-0.1)); g.gain.linearRampToValueAtTime(0,t+dur+0.6);
-    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1400;
+    g.gain.value = 0;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(peak,t+attack);
+    g.gain.setValueAtTime(peak,t+Math.max(attack+0.05,dur-0.1)); g.gain.linearRampToValueAtTime(0,t+dur+0.6);
+    const lp = lowpass(ctx, supersaw ? 3200 : organ ? 2200 : 1400);
     lp.connect(g).connect(out);
-    // Two slightly out-of-tune saws per note = big warm "chorus" sound
-    ev.midis.forEach(m=>[-7,7].forEach(det=>{ const o=osc(ctx,'sawtooth',mtof(m),t,t+dur+0.7,lp); o.detune.value=det; }));
+    const detunes = supersaw ? [-24,-12,0,12,24] : [-7,7];
+    ev.midis.forEach(m=>{
+      detunes.forEach(det=>{ const o=osc(ctx, organ ? 'square' : 'sawtooth', mtof(m), t, t+dur+0.7, lp); o.detune.value=det; });
+      if (organ) osc(ctx,'sine',mtof(m)/2,t,t+dur+0.7,lp);
+    });
   },
 };
 
@@ -1065,44 +1294,59 @@ function buildMaster(ctx){
 /* ---------- 7. PLAYBACK, VISUALS, WAV ---------- */
 const INTRO_MUTE = new Set(['kick','snare','clap','tom']);  // intro = no big drums yet
 
-// The song plan: which passes to play and how long each step is
+// The song plan: which passes to play, how long each step is, how many steps total
 function getPlan(){
   const stepDur = 60/song.tempo/4;          // one 16th note
+  if (song.raw){
+    // Hot Garbage: one pass, no intro, no ending
+    return {stepDur, passes:[{label:'Hot Garbage 🗑️', mute:new Set()}], ending:false, steps:COLS, total:COLS*stepDur};
+  }
   const full = document.getElementById('fullChk').checked;
   const passes = full
     ? [{label:'Intro 🌙', mute:INTRO_MUTE}, {label:'Main Groove 🔥', mute:new Set()}]
     : [{label:'Loop 🔁', mute:new Set()}];
-  const total = passes.length*COLS*stepDur + (full ? 16*stepDur : 0);
-  return {stepDur, passes, ending:full, total};
+  return {
+    stepDur, passes, ending:full,
+    steps: passes.length*COLS + (full ? 1 : 0),
+    total: passes.length*COLS*stepDur + (full ? 16*stepDur : 0),
+  };
 }
-
-// Schedule every note of the song starting at "start"
-function scheduleSong(ctx, dest, start, plan){
-  const sd = plan.stepDur;
-  plan.passes.forEach((pass,p)=>{
-    for (let col=0; col<COLS; col++){
-      const t = start + (p*COLS+col)*sd;
-      TRACK_ORDER.forEach(type=>{
-        const ev = song.tracks[type][col];
-        if (ev && !pass.mute.has(type)) INSTR[type](ctx,dest,t,ev,sd);
-      });
-    }
-  });
-  if (plan.ending){
+// Swing: pushes some notes a little late for a bouncy feel
+function swingDelay(col, sd){
+  const s = song.swing;
+  return (s && col % s.on === s.on/2) ? s.amt*sd : 0;
+}
+// Schedule one step (slot) of the song. Step numbers count across all passes.
+function scheduleStep(ctx, dest, start, plan, s){
+  const sd = plan.stepDur, mainSteps = plan.passes.length*COLS;
+  if (s < mainSteps){
+    const pass = plan.passes[Math.floor(s/COLS)], col = s%COLS;
+    const t = start + s*sd + swingDelay(col, sd);
+    TRACK_ORDER.forEach(type=>{
+      const ev = song.tracks[type][col];
+      if (ev && !pass.mute.has(type)) INSTR[type](ctx,dest,t,ev,sd);
+    });
+  } else if (plan.ending){
     // Ending: big home chord so the song feels finished
-    const t = start + plan.passes.length*COLS*sd;
-    const home = song.chords[0].triad;
+    const t = start + mainSteps*sd, home = song.barChords[0].triad;
     INSTR.kick(ctx,dest,t,{vel:0.9});
     INSTR.pad(ctx,dest,t,{vel:0.8, midis:home, dur:12},sd);
     INSTR.piano(ctx,dest,t,{vel:0.8, midi:home[0]+12});
     INSTR.piano(ctx,dest,t+sd,{vel:0.6, midi:home[2]+12});
     INSTR.bells(ctx,dest,t+sd*2,{vel:0.7, midi:home[0]+24});
-    INSTR.bass(ctx,dest,t,{vel:0.9, midi:degMidi(0,song.bassBase,song.scale), dur:8},sd);
+    INSTR.bass(ctx,dest,t,{vel:0.9, midi:home[0]-12, dur:8},sd);
   }
+}
+// Schedule a whole song at once (used for the WAV download)
+function scheduleSong(ctx, dest, start, plan){
+  for (let s=0; s<plan.steps; s++) scheduleStep(ctx, dest, start, plan, s);
 }
 
 let audioCtx = null, liveBus = null, playInfo = null, song = null, analysis = null;
 
+// Live playback schedules notes a little ahead of time ("lookahead"),
+// so long songs don't create thousands of sounds all at once.
+const LOOKAHEAD = 0.35;   // seconds
 function play(){
   if (!song) return;
   if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
@@ -1110,9 +1354,19 @@ function play(){
   stop();
   liveBus = buildMaster(audioCtx);
   const plan = getPlan(), start = audioCtx.currentTime + 0.12;
-  scheduleSong(audioCtx, liveBus.input, start, plan);
-  playInfo = {start, plan, lastStep:-1};
+  playInfo = {start, plan, lastStep:-1, nextSched:0, lastCol:-1};
+  schedTick();
 }
+function schedTick(){
+  if (!playInfo || !liveBus) return;
+  const {start, plan} = playInfo;
+  while (playInfo.nextSched < plan.steps && start + playInfo.nextSched*plan.stepDur < audioCtx.currentTime + LOOKAHEAD){
+    scheduleStep(audioCtx, liveBus.input, start, plan, playInfo.nextSched);
+    playInfo.nextSched++;
+  }
+}
+setInterval(schedTick, 40);   // keeps scheduling even if the screen stops animating
+
 function stop(){
   if (liveBus){
     const bus = liveBus;
@@ -1122,7 +1376,7 @@ function stop(){
   }
   playInfo = null;
   document.getElementById('nowPlaying').textContent = 'Press Play to hear it!';
-  document.getElementById('playhead') && (document.getElementById('playhead').style.display='none');
+  const ph = document.getElementById('playhead'); if (ph) ph.style.display = 'none';
   document.getElementById('mapHead').style.display = 'none';
 }
 
@@ -1140,6 +1394,7 @@ function spawn(type, col, ev){
 
 // Main animation loop: moves the playhead and draws particles
 function loop(){
+  schedTick();
   if (playInfo && audioCtx){
     const {start, plan} = playInfo;
     const elapsed = audioCtx.currentTime - start;
@@ -1151,7 +1406,7 @@ function loop(){
       if (document.getElementById('loopChk').checked) play(); else stop();
     } else if (step >= 0){
       if (step < mainSteps){
-        const pass = plan.passes[Math.floor(step/COLS)], col = step%COLS;
+        const pass = plan.passes[Math.floor(step/COLS)], col = step%COLS, bar = Math.floor(col/16);
         // Spawn particles for any notes we just passed
         for (let s=playInfo.lastStep+1; s<=step; s++){
           const ps = plan.passes[Math.floor(s/COLS)], cc = s%COLS;
@@ -1159,19 +1414,26 @@ function loop(){
           heat[cc] = 1;   // light up this column on the overlay
         }
         playInfo.col = col; playInfo.mute = pass.mute;
-        if (gif && gif.frameGrids && Math.floor(col/16) !== mapBar) drawMap(Math.floor(col/16));   // GIF: swap the map each bar
-        const bar = Math.floor(col/16);
+        if (gif && gif.frameGrids && bar !== mapBar) drawMap(bar);   // GIF: swap the map each bar
         document.getElementById('nowPlaying').textContent =
-          `Now playing: ${pass.label}  |  Bar ${bar+1} of 4  |  Chord ${song.chords[bar].name}`;
-        const ph = document.getElementById('playhead');
-        ph.style.display='block'; ph.style.left = (140 + col*18) + 'px';
-        const mh = document.getElementById('mapHead');
-        mh.style.display='block'; mh.style.left = (col/COLS*100) + '%';
+          `Now playing: ${pass.label}  |  Bar ${bar+1} of ${BARS}  |  Chord ${song.barChords[bar].name}`;
+        if (col !== playInfo.lastCol){
+          playInfo.lastCol = col;
+          const ph = document.getElementById('playhead');
+          ph.style.display='block'; ph.style.left = (140 + col*18) + 'px';
+          const mh = document.getElementById('mapHead');
+          mh.style.display='block'; mh.style.left = (col/COLS*100) + '%';
+          // Keep the playhead in view on long songs
+          const seq = document.querySelector('.seq'), x = 140 + col*18;
+          if (x < seq.scrollLeft + 140 || x > seq.scrollLeft + seq.clientWidth - 40) seq.scrollLeft = x - 160;
+        }
       } else {
         document.getElementById('nowPlaying').textContent = 'Now playing: Ending 🎉';
         playInfo.col = null; playInfo.mute = null;
-        if (playInfo.lastStep < mainSteps) heat.fill(1);   // whole picture flashes for the ending
-        if (playInfo.lastStep < mainSteps) for (let i=0;i<20;i++) spawn(TRACK_ORDER[i%TRACK_ORDER.length], Math.random()*COLS, {vel:1});
+        if (playInfo.lastStep < mainSteps){
+          heat.fill(1);   // whole picture flashes for the ending
+          for (let i=0;i<20;i++) spawn(TRACK_ORDER[i%TRACK_ORDER.length], Math.random()*COLS, {vel:1});
+        }
       }
       playInfo.lastStep = step;
     }
@@ -1188,7 +1450,7 @@ function loop(){
   vctx.globalAlpha = 1;
   particles = particles.filter(p=>p.life>0);
   // Fade the overlay glow, then redraw it
-  for (let i=0;i<COLS;i++) heat[i] *= 0.9;
+  for (let i=0;i<heat.length;i++) heat[i] *= 0.9;
   tickGif(performance.now());   // animate the GIF (or sync it to the song)
   drawOverlay();
   requestAnimationFrame(loop);
@@ -1208,7 +1470,8 @@ async function downloadWav(){
     const buf = await off.startRendering();
     const a = document.createElement('a');
     a.href = URL.createObjectURL(bufferToWav(buf));
-    a.download = `color-beats-${song.keyName.replace(' ','-')}-${song.tempo}bpm.wav`;
+    const name = `${song.genre.name}-${song.keyName}`.replace(/[^A-Za-z0-9#]+/g,'-').replace(/-+$/,'');
+    a.download = `color-beats-${name}-${song.tempo}bpm.wav`;
     a.click();
   } finally {
     btn.disabled = false; btn.textContent = '💾 Download Song (.wav)';
@@ -1233,33 +1496,37 @@ function bufferToWav(buf){
 }
 
 /* ---------- 8. RESULTS UI ---------- */
-// The color bucket map. For GIFs it swaps to the frame each bar uses:
-// bar 1 shows the 1/4 frame, bar 2 the 2/4 frame, and so on.
+// The color bucket map. For GIFs it swaps to the frame each bar uses
+// (bar 1 of 4 shows the 1/4 frame, bar 2 the 2/4 frame, and so on).
 let mapGrid = null, mapBar = -1;
 function drawMap(bar){
   const isGif = gif && gif.frameGrids;
   mapGrid = isGif ? gif.frameGrids[bar] : analysis.grid;
   mapBar = bar;
   const map = document.getElementById('map'), mctx = map.getContext('2d');
-  const cw = map.width/COLS, ch = map.height/ROWS;
+  map.width = COLS*8; map.height = ROWS*8;
   mapGrid.forEach((row,r)=>row.forEach((cell,c)=>{
-    mctx.fillStyle = COLORS[cell.ci].hex; mctx.fillRect(c*cw, r*ch, cw, ch);
+    mctx.fillStyle = COLORS[cell.ci].hex; mctx.fillRect(c*8, r*8, 8, 8);
   }));
   const label = document.getElementById('mapFrame');
   label.style.display = isGif ? 'block' : 'none';
-  if (isGif) label.textContent = `🎞️ Bar ${bar+1}: GIF frame ${gif.songFrames[bar]+1} of ${gif.frames.length} (${bar+1}/4 of the way)`;
+  if (isGif) label.textContent = `🎞️ Bar ${bar+1}: GIF frame ${gif.songFrames[bar]+1} of ${gif.frames.length} (${bar+1}/${BARS} of the way)`;
 }
+
 function showResults(){
-  const res = document.getElementById('results');
-  res.style.display = 'block';
+  document.getElementById('results').style.display = 'block';
 
   // Song info chips
+  const g = song.genre;
   const noteCount = TRACK_ORDER.reduce((n,t)=>n+song.tracks[t].filter(Boolean).length, 0);
+  const chordList = song.raw ? 'None (anything goes)' : song.barChords.slice(0, Math.min(4,BARS)).map(c=>c.name).join('  ➜  ');
   document.getElementById('chips').innerHTML = `
+    <div class="chip">${g.emoji} Genre: <span>${g.name}</span></div>
     <div class="chip">🎼 Key: <span>${song.keyName}</span></div>
     <div class="chip">${song.happy ? '😄' : '🌙'} Mood: <span>${song.happy ? 'Happy (bright picture)' : 'Moody (dark picture)'}</span></div>
     <div class="chip">⏱️ Tempo: <span>${song.tempo} BPM</span></div>
-    <div class="chip">🎹 Chords: <span>${song.chords.map(c=>c.name).join('  ➜  ')}</span></div>
+    <div class="chip">📏 Size: <span>${BARS} bars</span></div>
+    <div class="chip">🎹 Chords: <span>${chordList}</span></div>
     <div class="chip">🎵 Notes: <span>${noteCount} per loop</span></div>`;
 
   // Color breakdown (sorted biggest first)
@@ -1274,6 +1541,7 @@ function showResults(){
 
   // Pixel map of color buckets (for GIFs it starts on the bar 1 frame)
   drawMap(0);
+  document.getElementById('mapHead').style.width = (100/COLS) + '%';
   const map = document.getElementById('map');
   map.onmousemove = e=>{
     const rect = map.getBoundingClientRect();
@@ -1285,7 +1553,7 @@ function showResults(){
 
   // Beat grid
   let html = `<div class="seq-row seq-head"><div class="seq-label">Bar / Chord</div>` +
-    song.chords.map((c,i)=>`<div class="cell-bar" style="width:${16*18}px">Bar ${i+1}: ${c.name}</div>`).join('') + `</div>`;
+    song.barChords.map((c,i)=>`<div class="cell-bar" style="width:${16*18}px">Bar ${i+1}: ${c.name}</div>`).join('') + `</div>`;
   TRACK_ORDER.forEach(type=>{
     const c = byType(type);
     html += `<div class="seq-row"><div class="seq-label"><i style="background:${c.hex}"></i>${c.emoji} ${c.inst}</div>`;
@@ -1301,6 +1569,22 @@ function showResults(){
   const inner = document.getElementById('seqInner');
   inner.style.width = (140 + COLS*18) + 'px';
   inner.innerHTML = html;
+  document.querySelector('.seq').scrollLeft = 0;
+}
+
+// Read the picture, build the song, show it. Returns false if the picture is empty.
+function makeSong(autoplay){
+  applySize(SIZE_BARS[+document.getElementById('sizeSlider').value]);
+  analysis = analyzePicture();
+  if (analysis.colorful === 0){
+    document.getElementById('msg').textContent = '🤫 Your picture is all black, which means silence! Draw something colorful first.';
+    return false;
+  }
+  song = buildSong(analysis, document.getElementById('helperChk').checked);
+  if (hasUpload) overlayGrid = analysis.grid;   // overlay matches the song exactly
+  showResults();
+  if (autoplay) play();
+  return true;
 }
 
 // The big button: analyze, build, show, and play
@@ -1308,17 +1592,9 @@ document.getElementById('makeBtn').onclick = ()=>{
   const msg = document.getElementById('msg');
   msg.textContent = '🔎 Reading your colors...';
   setTimeout(()=>{   // small delay so the message shows before the heavy math
-    analysis = analyzePicture();
-    if (analysis.colorful === 0){
-      msg.textContent = '🤫 Your picture is all black, which means silence! Draw something colorful first.';
-      return;
-    }
-    song = buildSong(analysis, document.getElementById('helperChk').checked);
-    if (hasUpload) overlayGrid = analysis.grid;   // overlay matches the song exactly
+    if (!makeSong(true)) return;
     msg.textContent = '✅ Song made! Scroll down to see and hear it.';
-    showResults();
     document.getElementById('results').scrollIntoView({behavior:'smooth'});
-    play();
   }, 30);
 };
 document.getElementById('playBtn').onclick = play;
@@ -1332,6 +1608,44 @@ document.getElementById('helperChk').onchange = e=>{
   showResults();
   if (wasPlaying) play();
 };
+
+/* ---------- Song Settings: genre buttons + size slider ---------- */
+const genreBtns = document.getElementById('genreBtns');
+Object.entries(GENRES).forEach(([key,g])=>{
+  const b = document.createElement('button');
+  b.className = 'btn genre' + (key===genreKey ? ' active' : '');
+  b.textContent = `${g.emoji} ${g.name}`;
+  b.onclick = ()=>{
+    genreKey = key;
+    document.querySelectorAll('.btn.genre').forEach(x=>x.classList.toggle('active', x===b));
+    document.getElementById('genreDesc').textContent = g.desc;
+    // Same picture, new genre: rebuild the song (no need to re-read the colors)
+    if (analysis){
+      const wasPlaying = !!playInfo;
+      song = buildSong(analysis, document.getElementById('helperChk').checked);
+      showResults();
+      if (wasPlaying) play();
+    }
+  };
+  genreBtns.appendChild(b);
+});
+document.getElementById('genreDesc').textContent = GENRES[genreKey].desc;
+
+// Song size: more bars = thinner slices of the picture = more detail and a longer song
+const sizeSlider = document.getElementById('sizeSlider');
+function sizeLabel(){
+  const bars = SIZE_BARS[+sizeSlider.value];
+  document.getElementById('sizeLabel').innerHTML =
+    `<span>${bars} bars</span>: reads ${bars*16} slices across and ${rowsFor(bars)} rows down`;
+}
+sizeSlider.oninput = sizeLabel;
+sizeSlider.onchange = ()=>{
+  const hadSong = !!analysis, wasPlaying = !!playInfo;
+  applySize(SIZE_BARS[+sizeSlider.value]);
+  if (overlayChk.checked && hasUpload) overlayGrid = analyzePicture().grid;
+  if (hadSong) makeSong(wasPlaying);
+};
+sizeLabel();
 
 /* ---------- Night sky stars ---------- */
 const sky = document.getElementById('sky');
