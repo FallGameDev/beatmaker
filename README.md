@@ -10,6 +10,6 @@ Draw a picture or upload one, and Color Beats turns its colors into a song.
 
 ## Song settings
 - **Genre:** Pop, Rock, Hip-Hop, EDM, Jazz, or Hot Garbage (no rules, every color plays exactly where it is).
-- **Song size:** slide from 1 to 16 bars, or type any number of 1 or more. Bigger songs read the picture in more, thinner slices.
+- **Song size:** slide from 1 to 16 bars, or type any number of 1 or more. Bigger songs read the picture in more, thinner slices and play faster (16 bars = 2x speed, 64 bars = 4x).
 
 Everything lives in a single `index.html` file with no build step. Open it in a browser, or turn on GitHub Pages for this repo.

@@ -138,8 +138,12 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
   font-weight:600;text-shadow:2px 2px 0 var(--ink),-1px -1px 0 var(--ink);font-size:.95rem}
 
 /* Pixel map */
-.map-wrap{position:relative;border:4px solid var(--ink);border-radius:16px;overflow:hidden;box-shadow:6px 6px 0 var(--ink)}
-#map{width:100%;display:block;image-rendering:pixelated}
+/* The map is square and its width is copied from the drawing canvas (see syncMapSize) */
+.results-row{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.map-col{flex:none;max-width:100%}
+.break-col{flex:1;min-width:260px}
+.map-wrap{position:relative;border:4px solid var(--ink);border-radius:18px;overflow:hidden;box-shadow:6px 6px 0 var(--ink);aspect-ratio:1/1;background:#000}
+#map{width:100%;height:100%;display:block;image-rendering:pixelated}
 .map-head{position:absolute;top:0;bottom:0;width:calc(100% / 64);background:#ffffff55;border-left:3px solid var(--yellow);display:none;pointer-events:none}
 
 /* Sequencer (beat grid) */
@@ -282,20 +286,20 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
     <div class="now" id="nowPlaying">Press Play to hear it!</div>
     <canvas id="vis" width="1100" height="170"></canvas>
 
-    <div class="grid2 section-gap">
-      <div>
-        <h3>🎨 Colors Found</h3>
-        <div id="breakdown"></div>
-      </div>
-      <div>
+    <div class="results-row section-gap">
+      <div class="map-col" id="mapCol">
         <h3>🧩 Your Picture as Color Buckets</h3>
         <div class="chip" id="mapFrame" style="display:none;margin-bottom:10px"></div>
         <div class="map-wrap">
-          <canvas id="map" width="512" height="128"></canvas>
+          <canvas id="map" width="512" height="512"></canvas>
           <div class="map-head" id="mapHead"></div>
         </div>
         <div class="note">Each square is one color bucket. Hover a square to see its real hex code. The yellow line shows where the song is playing.</div>
         <div class="readout" id="mapReadout"><span>Hover the map above.</span></div>
+      </div>
+      <div class="break-col">
+        <h3>🎨 Colors Found</h3>
+        <div id="breakdown"></div>
       </div>
     </div>
 
@@ -937,6 +941,10 @@ const GENRES = {
 };
 let genreKey = 'pop';
 
+// Speed boost: songs bigger than 4 bars play faster so they don't drag on.
+// 4 bars or less = normal speed, 16 bars = 2x, 64 bars = 4x (square root growth).
+const speedFor = bars => Math.max(1, Math.sqrt(bars/4));
+
 function buildSong(an, helperOn){
   const g = GENRES[genreKey];
   const {grid, totals, avgLight, avgSat} = an;
@@ -979,7 +987,8 @@ function buildSong(an, helperOn){
     }
     const barChords = Array.from({length:BARS}, ()=>({name:'???', triad:[48,49,54], deg:0}));
     return {tracks, barChords, raw:true, genre:g, sound:g.sound, swing:null,
-      tempo: Math.round(60 + avgSat*170 + avgLight*30), happy: avgLight>=0.5, keyName:'No key 🤷'};
+      baseTempo: Math.round(60 + avgSat*170 + avgLight*30), speed: speedFor(BARS),
+      tempo: Math.round((60 + avgSat*170 + avgLight*30) * speedFor(BARS)), happy: avgLight>=0.5, keyName:'No key 🤷'};
   }
 
   /* ----- Every other genre: music rules keep it sounding good ----- */
@@ -990,7 +999,8 @@ function buildSong(an, helperOn){
   let dom = 0;
   totals.forEach((v,i)=>{ if (COLORS[i].type!=='rest' && (COLORS[dom].type==='rest' || v>totals[dom])) dom=i; });
   const rootPc = KEY_FOR_COLOR[dom];
-  const tempo = Math.round(g.tempo[0] + avgSat*(g.tempo[1]-g.tempo[0]));
+  const baseTempo = Math.round(g.tempo[0] + avgSat*(g.tempo[1]-g.tempo[0]));
+  const tempo = Math.round(baseTempo * speedFor(BARS));   // bigger songs play faster
 
   const padBase = 48 + rootPc;
   const bassBase = 36 + rootPc - (rootPc>7 ? 12 : 0);
@@ -1129,7 +1139,7 @@ function buildSong(an, helperOn){
   }
 
   return {
-    tracks, barChords, tempo, happy, genre:g, sound:g.sound, swing:g.swing, raw:false,
+    tracks, barChords, tempo, baseTempo, speed:speedFor(BARS), happy, genre:g, sound:g.sound, swing:g.swing, raw:false,
     keyName: NOTE_NAMES[rootPc] + (happy ? ' major' : ' minor'),
   };
 }
@@ -1526,6 +1536,11 @@ function bufferToWav(buf){
 }
 
 /* ---------- 8. RESULTS UI ---------- */
+// Keep the bucket map exactly as big as the drawing canvas on screen
+function syncMapSize(){
+  document.getElementById('mapCol').style.width = document.getElementById('canvasWrap').offsetWidth + 'px';
+}
+new ResizeObserver(syncMapSize).observe(document.getElementById('canvasWrap'));
 // The color bucket map. For GIFs it swaps to the frame each bar uses
 // (bar 1 of 4 shows the 1/4 frame, bar 2 the 2/4 frame, and so on).
 let mapGrid = null, mapBar = -1;
@@ -1534,10 +1549,12 @@ function drawMap(bar){
   mapGrid = isGif ? gif.frameGrids[bar] : analysis.grid;
   mapBar = bar;
   const map = document.getElementById('map'), mctx = map.getContext('2d');
-  const px = Math.max(1, Math.min(8, Math.floor(8192/COLS)));   // square size in pixels
-  map.width = COLS*px; map.height = ROWS*px;
+  // Same pixel size as the drawing, so every square sits right over the part of the picture it came from
+  map.width = W; map.height = H;
+  const cw = W/COLS, ch = H/ROWS;
   mapGrid.forEach((row,r)=>row.forEach((cell,c)=>{
-    mctx.fillStyle = COLORS[cell.ci].hex; mctx.fillRect(c*px, r*px, px, px);
+    mctx.fillStyle = COLORS[cell.ci].hex;
+    mctx.fillRect(Math.floor(c*cw), Math.floor(r*ch), Math.ceil(cw), Math.ceil(ch));   // no gaps between squares
   }));
   const label = document.getElementById('mapFrame');
   label.style.display = isGif ? 'block' : 'none';
@@ -1555,7 +1572,7 @@ function showResults(){
     <div class="chip">${g.emoji} Genre: <span>${g.name}</span></div>
     <div class="chip">🎼 Key: <span>${song.keyName}</span></div>
     <div class="chip">${song.happy ? '😄' : '🌙'} Mood: <span>${song.happy ? 'Happy (bright picture)' : 'Moody (dark picture)'}</span></div>
-    <div class="chip">⏱️ Tempo: <span>${song.tempo} BPM</span></div>
+    <div class="chip">⏱️ Tempo: <span>${song.tempo} BPM</span>${song.speed > 1 ? ` (${song.baseTempo} x${song.speed.toFixed(1)} speed boost)` : ''}</div>
     <div class="chip">📏 Size: <span>${BARS} bars</span></div>
     <div class="chip">🎹 Chords: <span>${chordList}</span></div>
     <div class="chip">🎵 Notes: <span>${noteCount} per loop</span></div>`;
@@ -1571,6 +1588,7 @@ function showResults(){
   }).join('');
 
   // Pixel map of color buckets (for GIFs it starts on the bar 1 frame)
+  syncMapSize();
   drawMap(0);
   document.getElementById('mapHead').style.width = (100/COLS) + '%';
   const map = document.getElementById('map');
