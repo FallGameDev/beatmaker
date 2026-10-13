@@ -401,8 +401,24 @@ function closestColor(rgb){
       if (d < bestD){ bestD = d; best = c; }
     }
   }
+  // Skin check: real skin in photos is softer than the base skin colors, so plain
+  // distance often calls it Brown, Gray, Pink, or White. If a pixel looks like skin
+  // and is NOT almost exactly another color on the palette, it counts as Skin Tone.
+  if (best.type !== 'clap' && bestD > SKIN_KEEP_DIST && looksLikeSkin(rgb)) best = byType('clap');
   closestCache.set(key, best);
   return best;
+}
+// How close a pixel must be to another palette color to stay that color (so drawing
+// with the Brown or Pink swatch still gives Brown or Pink, not Skin Tone)
+const SKIN_KEEP_DIST = 10;
+// Warm (red strongest), gently colored, not too dark: the range real skin falls in,
+// from deep to very light skin, including shadows and highlights
+function looksLikeSkin({r,g,b}){
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  if (max !== r || max === min) return false;     // red must be the strongest channel
+  const hue = 60*(g-b)/(max-min);                  // 0 = red, 30 = orange, 60 = yellow
+  const sat = (max-min)/max, val = max/255;
+  return hue >= -15 && hue <= 42 && sat >= 0.12 && sat <= 0.75 && val >= 0.25;
 }
 // Lightness + saturation (0 to 1) used for mood and tempo
 function lightSat(r,g,b){
