@@ -143,6 +143,8 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
 .map-col{flex:none;max-width:100%}
 .break-col{flex:1;min-width:260px}
 .map-wrap{position:relative;border:4px solid var(--ink);border-radius:18px;overflow:hidden;box-shadow:6px 6px 0 var(--ink);aspect-ratio:1/1;background:#000}
+/* Keep the canvas centered when a tall picture makes it narrower than its card */
+.canvas-wrap{margin-left:auto;margin-right:auto}
 #map{width:100%;height:100%;display:block;image-rendering:pixelated}
 .map-head{position:absolute;top:0;bottom:0;width:calc(100% / 64);background:#ffffff55;border-left:3px solid var(--yellow);display:none;pointer-events:none}
 
@@ -244,7 +246,7 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
     <ol>
       <li><b>Pixels:</b> Every picture is made of tiny dots called pixels. Each one has a <b>hex code</b> like <code>#FF0000</code>. The 3 pairs are how much Red, Green, and Blue light it has (00 = none, FF = the most).</li>
       <li><b>Closest color:</b> We measure the "distance" between your pixel and each of our 12 color buckets, like measuring how far apart two points are on a map. The shortest distance wins.</li>
-      <li><b>Sheet music:</b> The picture is read <b>left to right</b> in thin slices, 16 per bar of music. The <b>Song Size</b> slider picks 2, 4, 8, or 16 bars, so bigger songs use more, thinner slices. Colors <b>higher up</b> play <b>higher notes</b>. Upload a <b>GIF</b> and each bar uses a different frame, like a flip book turned into music!</li>
+      <li><b>Sheet music:</b> The picture is read <b>left to right</b> in thin slices, 16 per bar of music. The <b>Song Size</b> slider picks 1 to 16 bars (or type any number), so bigger songs use more, thinner slices and play faster. Uploaded pictures keep their real shape, wide or tall. Colors <b>higher up</b> play <b>higher notes</b>. Upload a <b>GIF</b> and each bar uses a different frame, like a flip book turned into music!</li>
       <li><b>Sounding good:</b> All notes stay in one <b>key</b> (a family of notes that fit together), drums snap to a steady beat, and the chords change every bar. Bright pictures get a happy <b>major</b> key, dark pictures get a moody <b>minor</b> key, and colorful pictures play faster!</li>
       <li><b>Genres:</b> Each genre has its own rules. Pop is bouncy, Rock has crunchy guitars, Hip-Hop swings with a deep 808 bass, EDM thumps on every beat, and Jazz uses fancy 4-note chords and a walking bass. <b>Hot Garbage</b> turns all the rules off, so you hear exactly what your picture says, good or not!</li>
     </ol>
@@ -359,7 +361,10 @@ function applySize(bars){
   overlayGrid = null; analysis = null; song = null;
   if (gif){ gif.songFrames = null; gif.frameGrids = null; }
 }
-const W = 512, H = 512;
+// Canvas size in pixels. Drawings are a 512x512 square; uploaded images keep
+// their own shape (the longest side becomes 512). See setCanvasSize.
+let W = 512, H = 512;
+const MAX_SIDE = 512;
 
 // Order of rows in the beat grid
 const TRACK_ORDER = ['kick','snare','clap','hat','shaker','tom','wood','bass','piano','bells','pad'];
@@ -421,6 +426,25 @@ let brushColor = byType('kick').hex;
 let lastPt = null, isDrawing = false;
 
 function clearCanvas(){ dctx.fillStyle='#000000'; dctx.fillRect(0,0,W,H); } // black = silence
+
+// Change the drawing canvas to w x h pixels and reshape it on screen to match
+function setCanvasSize(w, h){
+  W = w; H = h;
+  draw.width = w; draw.height = h;          // (resizing a canvas also wipes it)
+  overlay.width = w; overlay.height = h;
+  const wrap = document.getElementById('canvasWrap');
+  wrap.style.aspectRatio = `${w} / ${h}`;
+  // Tall pictures: limit the height to 70% of the screen so they don't get huge
+  wrap.style.width = `min(100%, calc(70vh * ${w/h}))`;
+  tintCache = {grid:null, canvas:null};
+}
+// Fit any picture size into a box whose longest side is MAX_SIDE, keeping its shape
+function fitSize(iw, ih){
+  const s = MAX_SIDE / Math.max(iw, ih);
+  return [Math.max(1, Math.round(iw*s)), Math.max(1, Math.round(ih*s))];
+}
+// Go back to the square drawing canvas
+function squareCanvas(){ if (W !== MAX_SIDE || H !== MAX_SIDE) setCanvasSize(MAX_SIDE, MAX_SIDE); }
 clearCanvas();
 
 // Build the palette buttons from our 12 colors
@@ -440,7 +464,7 @@ function setBrush(hex, el){
 paletteEl.firstChild.classList.add('active');
 document.getElementById('customColor').oninput = e => setBrush(e.target.value, null);
 document.getElementById('eraserBtn').onclick = () => setBrush('#000000', null);
-document.getElementById('clearBtn').onclick = () => { clearCanvas(); setUploaded(false); };
+document.getElementById('clearBtn').onclick = () => { setUploaded(false); squareCanvas(); clearCanvas(); };
 
 /* ---------- Overlay (only for uploaded images) ---------- */
 // hasUpload: true while the canvas holds an uploaded picture
@@ -567,6 +591,7 @@ async function loadImageFile(file){
   const img = new Image();
   img.onload = ()=>{
     stopGif();
+    setCanvasSize(...fitSize(img.width, img.height));   // full image shape, not a square
     clearCanvas();
     drawCover(dctx, img);
     URL.revokeObjectURL(img.src);
@@ -595,6 +620,8 @@ function startGif(frames){
       return {canvas:f.canvas, delay:f.delay*stride};
     });
   }
+  stopGif();
+  setCanvasSize(...fitSize(frames[0].canvas.width, frames[0].canvas.height));   // full GIF shape
   const paint = document.createElement('canvas'); paint.width = W; paint.height = H;
   gif = {frames, paint, pctx:paint.getContext('2d'), free:0, nextAt:0, shown:-1, songFrames:null, frameGrids:null};
   setUploaded(true);
@@ -740,7 +767,7 @@ wrap.addEventListener('drop', e=>{ e.preventDefault(); wrap.classList.remove('dr
 
 // Random art: blobs and stripes in random palette colors (great for testing)
 document.getElementById('randomBtn').onclick = ()=>{
-  clearCanvas(); setUploaded(false);
+  setUploaded(false); squareCanvas(); clearCanvas();
   const pick = () => COLORS[Math.floor(Math.random()*(COLORS.length-1))].hex;
   for (let i=0;i<14;i++){
     dctx.fillStyle = pick();
@@ -1551,6 +1578,7 @@ function drawMap(bar){
   const map = document.getElementById('map'), mctx = map.getContext('2d');
   // Same pixel size as the drawing, so every square sits right over the part of the picture it came from
   map.width = W; map.height = H;
+  document.querySelector('.map-wrap').style.aspectRatio = `${W} / ${H}`;   // same shape as the picture
   const cw = W/COLS, ch = H/ROWS;
   mapGrid.forEach((row,r)=>row.forEach((cell,c)=>{
     mctx.fillStyle = COLORS[cell.ci].hex;
