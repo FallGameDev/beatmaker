@@ -164,6 +164,9 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
 .btn.genre{background:var(--card2);color:var(--text)}
 .btn.genre.active{background:var(--yellow);color:var(--ink);transform:translate(3px,3px);box-shadow:2px 2px 0 var(--ink)}
 #sizeSlider{width:240px}
+/* Number box next to the slider: type any size */
+#sizeNum{font:inherit;font-weight:700;font-size:1.1rem;width:96px;padding:6px 10px;border:4px solid var(--ink);
+  border-radius:14px;background:#fff8ec;color:var(--ink);box-shadow:4px 4px 0 var(--ink)}
 #sizeLabel span{color:var(--yellow);font-weight:700}
 </style>
 </head>
@@ -251,10 +254,11 @@ label.chk input{width:20px;height:20px;accent-color:var(--pink)}
     <div class="note" id="genreDesc"></div>
     <h3 class="section-gap">Song Size</h3>
     <div class="row">
-      <input type="range" id="sizeSlider" min="0" max="3" step="1" value="1">
+      <input type="range" id="sizeSlider" min="1" max="16" step="1" value="4">
+      <input type="number" id="sizeNum" min="1" step="1" value="4" title="Type any number of bars (1 or more)">
       <div class="chip" id="sizeLabel"></div>
     </div>
-    <div class="note">Bigger songs read your picture in more, thinner slices. That catches more detail and makes the song longer.</div>
+    <div class="note">Bigger songs read your picture in more, thinner slices. That catches more detail and makes the song longer. Slide up to 16 bars, or type any number in the box to go even bigger.</div>
   </section>
 
   <div class="center">
@@ -341,7 +345,6 @@ const byType = t => COLORS[IDX[t]];
 let BARS = 4;     // how many bars of music
 let COLS = 64;    // BARS x 16 steps = slices across the picture
 let ROWS = 16;    // slices down the picture = pitch
-const SIZE_BARS = [2,4,8,16];                                  // slider positions
 const rowsFor = bars => bars<=4 ? 16 : bars<=8 ? 24 : 32;      // bigger songs read finer rows too
 // Switch song size. Anything built for the old size gets thrown away.
 function applySize(bars){
@@ -455,12 +458,14 @@ overlayChk.onchange = () => {
   if (overlayChk.checked && !overlayGrid) overlayGrid = analyzePicture().grid;
 };
 
-// Draws the overlay every frame
+// Draws the overlay every frame.
+// The faint tint is drawn once and saved (tintCache); each frame only the
+// columns that are glowing get redrawn on top, so even huge songs stay smooth.
+let tintCache = {grid:null, canvas:null};
 function drawOverlay(){
   const on = hasUpload && overlayChk.checked && overlayGrid;
   overlay.style.display = on ? 'block' : 'none';
   if (!on) return;
-  octx.clearRect(0,0,W,H);
   const mute = playInfo && playInfo.mute;
   // For GIFs that are playing, use the buckets from the frame on screen
   const grid = (gif && gif.frameGrids && playInfo && playInfo.col != null)
@@ -468,18 +473,32 @@ function drawOverlay(){
   const rows = grid.length, cols = grid[0].length;   // size of the grid being drawn
   const cw = W/cols, ch = H/rows;
 
-  for (let c=0; c<cols; c++){
-    for (let r=0; r<rows; r++){
+  // Faint tint everywhere (rebuilt only when the grid changes)
+  if (tintCache.grid !== grid){
+    const tc = document.createElement('canvas'); tc.width = W; tc.height = H;
+    const t = tc.getContext('2d'); t.globalAlpha = 0.18;
+    for (let c=0; c<cols; c++) for (let r=0; r<rows; r++){
       const color = COLORS[grid[r][c].ci];
       if (color.type === 'rest') continue;   // black stays clear
-      // Is this color's instrument actually playing in this column right now?
+      t.fillStyle = color.hex; t.fillRect(c*cw, r*ch, cw, ch);
+    }
+    tintCache = {grid, canvas:tc};
+  }
+  octx.clearRect(0,0,W,H);
+  octx.drawImage(tintCache.canvas, 0, 0);
+
+  // Bright glow on notes that are playing (only columns that are still lit up)
+  for (let c=0; c<cols; c++){
+    if (heat[c] <= 0.02) continue;
+    for (let r=0; r<rows; r++){
+      const color = COLORS[grid[r][c].ci];
+      if (color.type === 'rest') continue;
       const ev = song && song.tracks[color.type] && song.tracks[color.type][c];
-      const playing = ev && heat[c] > 0.02 && !(mute && mute.has(color.type));
-      // Faint tint everywhere, bright glow on notes that are playing
-      octx.globalAlpha = playing ? 0.25 + 0.65*heat[c] : 0.18;
+      if (!ev || (mute && mute.has(color.type))) continue;
+      octx.globalAlpha = 0.25 + 0.65*heat[c];
       octx.fillStyle = color.hex;
       octx.fillRect(c*cw, r*ch, cw, ch);
-      if (playing && heat[c] > 0.6 && cw >= 6){   // outlines only when squares are big enough
+      if (heat[c] > 0.6 && cw >= 6){   // outlines only when squares are big enough
         octx.globalAlpha = heat[c];
         octx.strokeStyle = '#0b0920'; octx.lineWidth = 2;
         octx.strokeRect(c*cw+1, r*ch+1, cw-2, ch-2);
@@ -489,7 +508,7 @@ function drawOverlay(){
   // Yellow playhead line
   if (playInfo && playInfo.col != null){
     octx.globalAlpha = 0.25; octx.fillStyle = '#ffd23f';
-    octx.fillRect(playInfo.col*cw, 0, cw, H);
+    octx.fillRect(playInfo.col*cw, 0, Math.max(cw,2), H);
     octx.globalAlpha = 1; octx.fillRect(playInfo.col*cw, 0, 3, H);
   }
   octx.globalAlpha = 1;
@@ -762,7 +781,11 @@ function analyzePicture(){
   const picks = Array.from({length:BARS}, (_,bar) => Math.max(0, Math.ceil((bar+1)*n/BARS) - 1));
   const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
   const tctx = tmp.getContext('2d', {willReadFrequently:true});
-  const parts = picks.map(fi => { composeGifFrame(tctx, fi); return analyzeData(tctx.getImageData(0,0,W,H).data); });
+  const done = new Map();   // frame number -> its analysis, so repeated frames are read once
+  const parts = picks.map(fi => {
+    if (!done.has(fi)){ composeGifFrame(tctx, fi); done.set(fi, analyzeData(tctx.getImageData(0,0,W,H).data)); }
+    return done.get(fi);
+  });
   // Song grid: each bar's 16 columns come from that bar's frame
   const grid = parts[0].grid.map((row,r) => row.map((cell,c) => parts[Math.floor(c/16)].grid[r][c]));
   gif.songFrames = picks;
@@ -800,9 +823,12 @@ function analyzeData(data){
     for (let c=0;c<COLS;c++){
       const votes = new Array(COLORS.length).fill(0);
       const sums = COLORS.map(()=>[0,0,0,0]);
-      for (let y=r*ch; y<(r+1)*ch; y+=STEP){
-        for (let x=c*cw; x<(c+1)*cw; x+=STEP){
-          const i = ((y|0)*W + (x|0))*4;
+      // Pixel range for this square (always at least 1 pixel, even for very thin slices)
+      const y0 = Math.min(H-1, Math.floor(r*ch)), y1 = Math.max(y0+1, Math.floor((r+1)*ch));
+      const x0 = Math.min(W-1, Math.floor(c*cw)), x1 = Math.max(x0+1, Math.floor((c+1)*cw));
+      for (let y=y0; y<y1; y+=STEP){
+        for (let x=x0; x<x1; x+=STEP){
+          const i = (y*W + x)*4;
           const rgb = {r:data[i], g:data[i+1], b:data[i+2]};
           const m = closestColor(rgb);
           votes[m.index]++; totals[m.index]++; samples++;
@@ -1460,6 +1486,10 @@ requestAnimationFrame(loop);
 // Render the song offline (super fast) and save it as a .wav file
 async function downloadWav(){
   if (!song) return;
+  if (getPlan().total > 600){   // over 10 minutes would need gigabytes of memory
+    alert('This song is over 10 minutes long, which is too big to save as a .wav file. Try a smaller Song Size.');
+    return;
+  }
   const btn = document.getElementById('wavBtn');
   btn.disabled = true; btn.textContent = '⏳ Rendering...';
   try {
@@ -1504,9 +1534,10 @@ function drawMap(bar){
   mapGrid = isGif ? gif.frameGrids[bar] : analysis.grid;
   mapBar = bar;
   const map = document.getElementById('map'), mctx = map.getContext('2d');
-  map.width = COLS*8; map.height = ROWS*8;
+  const px = Math.max(1, Math.min(8, Math.floor(8192/COLS)));   // square size in pixels
+  map.width = COLS*px; map.height = ROWS*px;
   mapGrid.forEach((row,r)=>row.forEach((cell,c)=>{
-    mctx.fillStyle = COLORS[cell.ci].hex; mctx.fillRect(c*8, r*8, 8, 8);
+    mctx.fillStyle = COLORS[cell.ci].hex; mctx.fillRect(c*px, r*px, px, px);
   }));
   const label = document.getElementById('mapFrame');
   label.style.display = isGif ? 'block' : 'none';
@@ -1574,7 +1605,7 @@ function showResults(){
 
 // Read the picture, build the song, show it. Returns false if the picture is empty.
 function makeSong(autoplay){
-  applySize(SIZE_BARS[+document.getElementById('sizeSlider').value]);
+  applySize(chosenBars());
   analysis = analyzePicture();
   if (analysis.colorful === 0){
     document.getElementById('msg').textContent = '🤫 Your picture is all black, which means silence! Draw something colorful first.';
@@ -1631,19 +1662,38 @@ Object.entries(GENRES).forEach(([key,g])=>{
 });
 document.getElementById('genreDesc').textContent = GENRES[genreKey].desc;
 
-// Song size: more bars = thinner slices of the picture = more detail and a longer song
+// Song size: more bars = thinner slices of the picture = more detail and a longer song.
+// The slider goes 1 to 16; the number box takes ANY whole number of 1 or more.
 const sizeSlider = document.getElementById('sizeSlider');
-function sizeLabel(){
-  const bars = SIZE_BARS[+sizeSlider.value];
-  document.getElementById('sizeLabel').innerHTML =
-    `<span>${bars} bars</span>: reads ${bars*16} slices across and ${rowsFor(bars)} rows down`;
+const sizeNum = document.getElementById('sizeNum');
+function chosenBars(){
+  const n = Math.floor(+sizeNum.value);
+  return Number.isFinite(n) && n >= 1 ? n : 1;
 }
-sizeSlider.oninput = sizeLabel;
-sizeSlider.onchange = ()=>{
+function sizeLabel(){
+  const bars = chosenBars();
+  let text = `<span>${bars} bar${bars===1 ? '' : 's'}</span>: reads ${bars*16} slices across and ${rowsFor(bars)} rows down`;
+  if (bars*16 > W) text += ` (more slices than the picture has pixels, so slices repeat)`;
+  if (bars > 64) text += ` ⚠️ Huge songs may be slow`;
+  document.getElementById('sizeLabel').innerHTML = text;
+}
+// Rebuild the song at the new size (only if one was already made)
+function applyChosenSize(){
   const hadSong = !!analysis, wasPlaying = !!playInfo;
-  applySize(SIZE_BARS[+sizeSlider.value]);
+  applySize(chosenBars());
   if (overlayChk.checked && hasUpload) overlayGrid = analyzePicture().grid;
   if (hadSong) makeSong(wasPlaying);
+}
+// Slider moves: copy its value into the box
+sizeSlider.oninput = ()=>{ sizeNum.value = sizeSlider.value; sizeLabel(); };
+sizeSlider.onchange = applyChosenSize;
+// Box typed in: clean it up (whole number, at least 1), move the slider (stops at 16)
+sizeNum.oninput = sizeLabel;
+sizeNum.onchange = ()=>{
+  sizeNum.value = chosenBars();
+  sizeSlider.value = Math.min(16, chosenBars());
+  sizeLabel();
+  applyChosenSize();
 };
 sizeLabel();
 
